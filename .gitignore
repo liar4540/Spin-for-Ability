@@ -1,5 +1,5 @@
-# Obsidian plugin settings can hold API keys and login tokens: never upload them
-**/.obsidian/plugins/*/data.json
+# Obsidian plugins: their settings can hold API keys/tokens, and their code reinstalls from Obsidian
+**/.obsidian/plugins/
 
 # Obsidian window layout (changes every time you click around)
 **/.obsidian/workspace.json
