@@ -1,0 +1,55 @@
+--!strict
+-- Shared type definitions used by both server and client.
+
+export type Rarity =
+	"Common"
+	| "Uncommon"
+	| "Rare"
+	| "Epic"
+	| "Legendary"
+	| "Ascended"
+	| "Mythic"
+	| "Divine"
+	| "Secret"
+
+export type AbilityType = "Melee" | "Projectile" | "AoE" | "Movement" | "Defense"
+
+export type RarityDef = {
+	Name: Rarity,
+	Rank: number, -- 1 = Common ... 9 = Secret (higher = rarer)
+	OneIn: number?, -- the "1 in N" check; nil for Common (it is the fallback)
+	Lucky: boolean, -- true if luck boosts this tier
+	Color: Color3,
+	RevealSeconds: number, -- normal reveal length
+	Power: number, -- damage/healing/shield multiplier (x1.35 per tier)
+	Shards: number, -- Shards given when a result of this tier is skipped
+}
+
+export type AbilityDef = {
+	Id: string,
+	Name: string,
+	Rarity: Rarity,
+	Type: AbilityType,
+	Damage: number,
+	Cooldown: number, -- seconds
+	Range: number, -- studs
+	Description: string,
+}
+
+-- One row of the odds screen: the real chance of one ability.
+export type AbilityChance = {
+	AbilityId: string,
+	Rarity: Rarity,
+	Chance: number, -- 0..1
+}
+
+-- Everything that adds luck. The server fills this from what it knows
+-- (passes, potions, which machine you're at); the client never sends it.
+export type LuckSources = {
+	HasLuckPass: boolean, -- x2 Luck pass: +1
+	PotionBonus: number, -- active potion: +1 (Luck) or +2 (Super Luck), 0 if none
+	AreaBonus: number, -- spin machine you're at: 0, 0.1 ... 0.4, VIP 0.5
+	ServerLuck: boolean, -- someone bought Server Luck in this server: +1
+}
+
+return {}

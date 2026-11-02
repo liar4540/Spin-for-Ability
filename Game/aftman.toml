@@ -1,0 +1,4 @@
+# Tools for this project, managed by Aftman (https://github.com/LPGhatguy/aftman).
+# Run `aftman install` once after cloning.
+[tools]
+rojo = "rojo-rbx/rojo@7.7.1"

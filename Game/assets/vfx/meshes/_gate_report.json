@@ -1,0 +1,122 @@
+{
+  "crescent_thick": {
+    "kind": "card",
+    "passed": true,
+    "fails": [],
+    "tris": 576,
+    "dimensions": [
+      13.997,
+      8.216,
+      0.0
+    ],
+    "uv_out_of_0_1": 0
+  },
+  "crescent_thin": {
+    "kind": "card",
+    "passed": true,
+    "fails": [],
+    "tris": 576,
+    "dimensions": [
+      13.787,
+      5.789,
+      0.0
+    ],
+    "uv_out_of_0_1": 0
+  },
+  "shock_ring": {
+    "kind": "card",
+    "passed": true,
+    "fails": [],
+    "tris": 256,
+    "dimensions": [
+      2.0,
+      2.0,
+      0.0
+    ],
+    "uv_out_of_0_1": 0
+  },
+  "sphere_shell": {
+    "kind": "closed",
+    "passed": true,
+    "fails": [],
+    "tris": 960,
+    "dimensions": [
+      2.0,
+      2.0,
+      2.0
+    ],
+    "uv_out_of_0_1": null
+  },
+  "bolt": {
+    "kind": "card",
+    "passed": true,
+    "fails": [],
+    "tris": 128,
+    "dimensions": [
+      2.238,
+      6.0,
+      2.571
+    ],
+    "uv_out_of_0_1": 0
+  },
+  "shard": {
+    "kind": "closed",
+    "passed": true,
+    "fails": [],
+    "tris": 12,
+    "dimensions": [
+      0.32,
+      0.277,
+      1.18
+    ],
+    "uv_out_of_0_1": 0
+  },
+  "pillar": {
+    "kind": "card",
+    "passed": true,
+    "fails": [],
+    "tris": 128,
+    "dimensions": [
+      2.0,
+      2.0,
+      1.0
+    ],
+    "uv_out_of_0_1": 0
+  },
+  "rock": {
+    "kind": "closed",
+    "passed": true,
+    "fails": [],
+    "tris": 80,
+    "dimensions": [
+      2.047,
+      2.034,
+      1.679
+    ],
+    "uv_out_of_0_1": null
+  },
+  "slab": {
+    "kind": "closed",
+    "passed": true,
+    "fails": [],
+    "tris": 12,
+    "dimensions": [
+      4.0,
+      1.0,
+      6.073
+    ],
+    "uv_out_of_0_1": null
+  },
+  "swirl": {
+    "kind": "card",
+    "passed": true,
+    "fails": [],
+    "tris": 192,
+    "dimensions": [
+      1.786,
+      1.573,
+      0.633
+    ],
+    "uv_out_of_0_1": 0
+  }
+}

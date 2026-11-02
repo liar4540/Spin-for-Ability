@@ -1,0 +1,14 @@
+# Place files: built by Rojo / saved by Studio. Back them up by publishing.
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+
+# Tooling output
+sourcemap.json
+roblox.toml
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
