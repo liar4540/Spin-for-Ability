@@ -80,7 +80,7 @@ src/
 | `UseAbility` | Client → Server | `slot, aimDirection` | Equipped? Off cooldown (server timer)? In Battlegrounds or near dummy? Alive and **not stunned**? Direction is a unit vector. **Server finds targets and deals damage** (never trust a "I hit X" message) |
 | `ChooseResult` (Function) | Client → Server | `choice` ("Keep" / "Equip" / "Skip"), `slot?`, `replaceUniqueId?` | Is there a waiting result? Valid choice? Keep with full storage needs a `replaceUniqueId` the player owns, **hasn't locked** and hasn't equipped. Answers `{ Ok, Reason }` so the client can ask "which one to replace?" |
 | `SetAutoSpin` | Client → Server | `on`, `keepMinRarity` | Owns the Auto Spin pass? Boolean? Rarity is one of the fixed names? |
-| `UpgradeAbility` (Function) | Client → Server | `uniqueId` | Owns it? Level < 10? Enough Shards **and** yen for this level (server table)? Take both and add the level in one step, no yields in between |
+| `UpgradeAbility` (Function) | Client → Server | `abilityId` | Known ability id? Owns at least one copy? Level < 10? Enough Shards **and** yen for this level (server table)? Take both and add the level in one step, no yields in between |
 | `BuyPotion` | Client → Server | `potionType` | Known type? Enough yen? Not already at the 5x luck cap? |
 | `RequestPurchase` | Client → Server | `productKey` | Known key (fixed list)? **Restricted player and this product buys luck (potions, x2 Luck, Server Luck, VIP, yen, x2 Yen) → refuse.** Only then does the server call `PromptProductPurchase` / `PromptGamePassPurchase` |
 | `ClaimPlaytimeReward` | Client → Server | `tier` | Has the player actually been in the server long enough? Not already claimed |
@@ -100,7 +100,7 @@ Every client → server remote goes through `RemoteGuard`, in this order *(LIHFO
 5. No `task.wait` / yields between "check" and "change data" on anything that moves yen, spins or items (stops duplication).
 6. Don't kick on one bad call (laggy players). Count violations and act on repeated ones. No `warn` per rejected call.
 
-**Live attributes the server sets for the UI:** `EffectiveLuck` (updates whenever any luck source starts or ends), `RandomItemsRestricted`, `PityCounter`, `KOStreak` (also drives the 🔥 above the head).
+**Live attributes the server sets for the UI:** `EffectiveLuck` (updates whenever any luck source starts or ends), `RandomItemsRestricted`, `PityCounter`, `LegendaryPityCounter`, `KOStreak` (also drives the 🔥 above the head).
 
 ## Battlegrounds combat (server)
 *(From LIHFOLK: "Genre Playbook - Battlegrounds and Arena Fighters", "Combat Systems Architecture", "Hitboxes and Hit Detection".)*
@@ -111,7 +111,8 @@ Every client → server remote goes through `RemoteGuard`, in this order *(LIHFO
 - **Anti-infinite combo:** hitstun decays per hit, max combo ~3–4 s, 0.5–1 s get-up invulnerability after ragdoll.
 - **KO credit:** last player to damage the victim in the last ~5 s.
 - **Damage formula:** `ability base damage × rarity power (x1.35 per tier, from Rarities.luau) × (1 + 0.04 × (level − 1))`, then block, shield etc. in the one damage path.
-- **KO streak (session only, server memory):** +1 on each KO credit. Reset to 0 when the player is KO'd **or ZoneService says they left the arena**. At 3+ the player gets +0.5 luck, but only when SpinService sees them at the Arena Spin Machine. Ending a streak pays +25 ¥ × the streak length.
+- **Repeat-KO rewards:** before paying a KO, look up `DailyKOs.Victims[victimUserId]` (reset when `DailyKOs.Day` isn't today's UTC day). 1st/2nd/3rd/4th+ KO on that player today pays 100% / 50% / 25% / 10% yen; the 4th+ doesn't count toward the streak. Keep at most ~200 victims per day in the table.
+- **KO streak (session only, server memory):** +1 on each KO credit that counts. Reset to 0 when the player is KO'd **or ZoneService says they left the arena**. At 3+ the player gets +0.5 luck, but only when SpinService sees them at the Arena Spin Machine. Ending a streak pays +25 ¥ × the streak length.
 
 ## Player data schema
 ```lua
@@ -124,7 +125,9 @@ Every client → server remote goes through `RemoteGuard`, in this order *(LIHFO
 	-- (no Spins currency: spinning is free)
 
 	-- Abilities
-	Inventory = {},           -- { [uniqueId] = { AbilityId = "FireFist", Level = 1 } }
+	Inventory = {},           -- { [uniqueId] = { AbilityId = "FireFist" } }  (copies; no level here)
+	Levels = {},              -- { [abilityId] = 1..10 } level per ability TYPE, shared by every copy
+	Discovered = {},          -- { [abilityId] = true } every ability ever rolled (Index + "NEW!")
 	Equipped = { false, false, false }, -- uniqueId per slot, false = empty
 	                          -- (NOT { nil, nil, nil }: in Lua that is just an empty table, so slot 3 vanishes)
 	Locked = {},              -- { [uniqueId] = true } can't be deleted or auto-skipped
@@ -132,6 +135,7 @@ Every client → server remote goes through `RemoteGuard`, in this order *(LIHFO
 
 	-- RNG
 	PityCounter = 0,          -- spins since last Epic+
+	LegendaryPityCounter = 0, -- spins since last Legendary+
 	TotalSpins = 0,           -- also decides which areas are unlocked
 
 	-- Potions
@@ -142,6 +146,8 @@ Every client → server remote goes through `RemoteGuard`, in this order *(LIHFO
 	-- Stats
 	KOs = 0,
 	Deaths = 0,
+	BestStreak = 0,           -- for the longest-streak leaderboard
+	DailyKOs = { Day = 0, Victims = {} }, -- { Day = UTC day number, Victims = { [userId] = KOs today } }
 
 	-- Progress flags
 	TutorialDone = false,
@@ -196,20 +202,21 @@ Every client → server remote goes through `RemoteGuard`, in this order *(LIHFO
 2. **Luck (one function, `Odds.EffectiveLuck`):** `luck = 1 + pass(+1) + potion(+1 / +2) + area(+0.1…+0.4, VIP +0.5) + ServerLuck(+1) + KO streak(+0.5, Arena Spin Machine only)`, then **`min(luck, 5)`**. Restricted players don't get Server Luck. The same function sets the `EffectiveLuck` attribute.
 3. **Roll** with a server `Random.new()`, rarest first through 8 checks: Secret `luck/250000`, Divine `luck/50000`, Mythic `luck/10000`, Ascended `luck/1000`, Legendary `luck/100`, Epic `luck/25`, then Rare `1/8` and Uncommon `1/3` (**no luck**). Each capped at 1. If none hit → Common.
 4. **Guarantees** (applied before rolling, and shown on the Odds screen):
+   - `LegendaryPityCounter ≥ 299` (300th spin with no Legendary+) → roll only among Legendary+. Checked first.
    - `PityCounter ≥ 49` (this is the 50th spin with no Epic+) → roll only among Epic+.
    - First-spin guarantee: the very first spin (`TotalSpins == 0`) → roll only among Rare+.
-5. Pick a random ability of that rarity (equal chance inside a tier), store it as the player's `PendingResult`, set `PityCounter` (0 on Epic+, else +1), and return the result from `RequestSpin` (`SpinResult` is for Auto Spin later). The client reveal **lands on** that result. It goes into the inventory only on Keep/Equip (`ChooseResult`), or automatically with Auto Spin if it's at or above the chosen rarity. Skip (button, spinning again, Auto Spin or auto-skip) adds the rarity's Shards (1 / 2 / 4 / 10 / 30 / 100 / 500 / 2,000 / 10,000).
+5. Pick a random ability of that rarity (equal chance inside a tier), store it as the player's `PendingResult`, update the pity counters (`PityCounter` 0 on Epic+, else +1; `LegendaryPityCounter` 0 on Legendary+, else +1), and return the result from `RequestSpin` (`SpinResult` is for Auto Spin later). The client reveal **lands on** that result. It goes into the inventory only on Keep/Equip (`ChooseResult`), or automatically with Auto Spin if it's at or above the chosen rarity. Skip (button, spinning again, Auto Spin or auto-skip) adds the rarity's Shards (1 / 2 / 4 / 10 / 30 / 100 / 500 / 2,000 / 10,000).
 6. `TotalSpins += 1`. If that crosses an area's requirement (1,000 / 5,000 / 15,000 / 50,000), give the unlock reward and send `AreaUnlocked`.
 7. **Odds screen** calls `Odds.Compute(luck, pity, guarantees)`, the same math as steps 2–4, and splits each tier evenly over its abilities.
 
 **Tests:** roll 1,000,000 times at luck 1x, 2x and 5x, and on a pity spin, and check the counts match `Odds.Compute` (chi-square test). Expected at 1x: Common 55.38%, Uncommon 27.69%, Rare 11.87%, Epic 3.956%, Legendary 0.9989%, Ascended 0.09999%, Mythic 0.0100%, Divine 0.0020%, Secret 0.0004%. (A million rolls only gives ~4 Secrets, so test Secret/Mythic separately with a forced high luck or a bigger run.)
 
-> ⚠️ **Code to update:** the repo's `Rarities.luau` still has the old 6 tiers (Rare 1/5, Epic 1/20). It needs the 9 tiers above, a `Power` multiplier per tier and a `Shards` value per tier, and `OddsTest` needs the new expected numbers.
+> ⚠️ **Code to update:** the repo's `Rarities.luau` still has the old 6 tiers (Rare 1/5, Epic 1/20). It needs the 9 tiers above, a `Power` multiplier per tier and a `Shards` value per tier, and `OddsTest` needs the new expected numbers. Also: the Legendary pity (`Odds.MinRarityFor` + a second counter), levels moved from `Inventory` to `Levels` per ability type in `DataService`, and the project name in `default.project.json` / README → **Spin for Abilities**.
 
 ## Tools / workflow
 **Decision: Rojo for code, Studio for building.** Rojo 7.7.1 is already set up in the project folder.
 - **Code:** write scripts in VS Code inside `src/`. Run `rojo serve` and click **Connect** in the Rojo Studio plugin, and changes sync into Studio live.
-- **First time:** `rojo build -o "Spin an Anime Abilities.rbxlx"`, then open that file in Studio (see the project `README.md`).
+- **First time:** `rojo build -o "Spin for Abilities.rbxlx"`, then open that file in Studio (see the project `README.md`).
 - **Building:** maps, UI, VFX and dummies are made in Studio as normal and saved in the place file (Rojo doesn't touch them).
 - **Git:** the project folder is a git repo. Commit `src/` often. The `.rbxlx` place file is git-ignored, so back it up by publishing.
 - **Team Create** on if anyone else builds with you (they also need Rojo to edit scripts).

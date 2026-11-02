@@ -96,7 +96,7 @@ Extra HUD bits:
   - **Skip** (grey) – shows what you get: "Skip → +10 💎 Shards". Works on any rarity. Epic+ asks "Are you sure?" so kids don't skip a Mythic by accident. Locked abilities can't be skipped.
   - **Auto-skip** setting: auto-skip up to Common / Uncommon / Rare (turns them straight into Shards) so fast spinners aren't spammed.
   - Skipping shows a small "+2 💎" pop flying to the Shards counter.
-- **Pity bar:** small bar under the Spin button: "Epic+ guaranteed in 23 spins".
+- **Pity bar:** small bar under the Spin button showing the closer guarantee: "Epic+ in 23 spins" and, smaller, "Legendary+ in 187".
 - **Odds button:** "📊 Odds" next to the Spin button. It has to be a word, not just an icon (Roblox rule for paid spins). Opens the Odds tab with your *current* odds.
 - **Server announcement for:** Mythic, Divine and Secret (and Ascended as a chat message only). Banner: "🔥 **PlayerName** rolled **Inferno Fist** [MYTHIC] (1 in 10,000)!" Merge banners if several land at once, and max 1 every few seconds.
 
@@ -108,7 +108,7 @@ Extra HUD bits:
 - **Max storage slots:** 15 (+10 with the Storage pass = 25; the pass is **Later**). Counter at the top: "12 / 15".
 - **Sort by:** [x] Rarity  [x] Newest  [x] Damage. Plus a rarity filter row (tap a color to show only that rarity).
 - **Info shown per ability:** name, rarity, type icon, **level (1–10)**, damage (with the level bonus), cooldown, range, short description, and a small looping preview of the VFX (or a still image for MVP).
-- **⬆ Upgrade button** on the info panel: "Level 4 → 5 · 400 💎 + 400 ¥ · +4% power". Grey with the missing amount if you can't afford it ("Need 120 more 💎"). Max level shows "MAX".
+- **⬆ Upgrade button** on the info panel: "Level 4 → 5 · 400 💎 + 400 ¥ · +4% power". Levels are per ability type, so it also says "All your Thunder Lances level up". Grey with the missing amount if you can't afford it ("Need 120 more 💎"). Max level shows "MAX".
 - **Equip:** tap a card → **Equip** button → tap the slot. (Drag-and-drop is bad on mobile, so keep it to taps; you can add drag for PC later.)
 - **Other buttons on the info panel:** Unequip, Delete (with confirm), 🔒 Lock (locked abilities can't be deleted or auto-skipped).
 
@@ -119,10 +119,10 @@ Extra HUD bits:
   - Numbers come from the same `Odds` module the server rolls with, and update **live** when your luck changes (potion starts or ends, area, someone buys Server Luck).
   - Rounding: at least 4 digits after the first non-zero one (0.009999%), never "0%", plus a small line: "Values are rounded and may not add up to exactly 100%."
   - **Special next spins:** on a pity spin it shows "Next spin: Epic+ guaranteed" with only Epic+ rows. The same applies during the first-spin Rare+ guarantee.
-  - Pity rule in words: "Epic+ guaranteed after 50 spins without one. You're at 27."
+  - Pity rules in words: "Epic+ guaranteed after 50 spins without one. You're at 27." and "Legendary+ guaranteed after 300 spins without one. You're at 113."
   - Bottom: "Your luck: 3.2x = 1x + x2 Luck pass +1 + Potion +1 + Area 2 +0.2 (max 5x)".
 - The **same Odds popup** opens from every place that sells luck or spin speed, and from the spin itself: the Spin button, the in-world spin machine, and the Shop cards for potions, x2 Luck, VIP, Server Luck, Quick Spin and Auto Spin.
-- **Index tab:** grid of every ability. Found = full color. Not found = black silhouette + "???" and its rarity border so players know what to chase. Top shows "Found 8 / 15". (Later: rewards for completing a rarity.)
+- **Index tab:** grid of every ability. **Found = rolled at least once, even if you skipped it** (you don't have to keep it). Found = full color + its level. Not found = black silhouette + "???" and its rarity border so players know what to chase. Top shows "Found 8 / 15". (Later: rewards for completing a rarity.)
 
 ### Shop
 - **Tabs:** [x] Gamepasses  [x] Potions  [x] Yen  *(no Spins tab: spinning is free)*

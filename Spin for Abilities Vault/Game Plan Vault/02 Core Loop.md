@@ -45,7 +45,7 @@ Spin with more luck for rarer abilities → fight stronger players → …
 - **Collection book / Index:** shows every ability, which ones you've found and which are still "???". Completing a rarity tier gives a reward.
 - **Upgrade / Awaken abilities:** level up an ability or merge duplicates to unlock stronger VFX or a new move.
 - **Limited-time abilities:** new or seasonal abilities each update (gives a reason to return and works well for update logs).
-- **Leaderboards:** most KOs, rarest ability, most spins.
+- **Leaderboards:** most KOs, rarest ability, most spins, **longest KO streak**, **highest ability level**.
 - **Group rewards:** join the Roblox group for a free luck potion (helps reach the 100 community members goal).
 
 ## Monetization (fits the 100 Robux goal)

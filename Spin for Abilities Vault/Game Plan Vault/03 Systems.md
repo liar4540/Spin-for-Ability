@@ -19,8 +19,8 @@
 | Awakening / Titles | Awaken max-level abilities, show-off titles | Later | ⬜ |
 | Quests | Daily/session goals for rewards | Later | ⬜ |
 | Daily Login Rewards | 7-day streak rewards | Later | ⬜ |
-| Collection Index | Shows found / missing abilities | Later | ⬜ |
-| Leaderboards | KOs, rarest ability, spins | Later | ⬜ |
+| Collection Index | Every ability you've **ever rolled** (kept or skipped) vs. still "???" | MVP (simple grid) / Later (completion rewards) | ⬜ |
+| Leaderboards | Most KOs, rarest ability, most spins, longest KO streak, highest ability level | Later | ⬜ |
 | Group Rewards | Free luck potion for joining the Roblox group | Later | ⬜ |
 | Trading | Swap abilities with players | Later (maybe never) | ⬜ |
 
@@ -55,7 +55,10 @@
   - **Cap: 5x total.** Without a cap, multiplying could reach 30x, which made Rare+ guaranteed. *(LIHFOLK: RNG Drops and Luck Systems, §3)*
   - The HUD 🍀 shows the exact luck the next spin will use, including the cap.
 - **Reveal animation:** rarer rolls get longer and flashier reveals, plus a server-wide announcement for Mythic, Divine and Secret. The server rolls **first**, and the animation lands on that result.
-- **Pity:** guaranteed Epic+ after 50 spins without one. Real effect: Epic+ goes from 5.07% to about **5.47% over the long run** (~7.8% of 50-spin streaks reach the guarantee). The counter is saved and shown ("Epic+ guaranteed in 23 spins"), and on the guaranteed spin the Odds screen shows Epic+ only.
+- **Pity (two counters, both saved):**
+  - **Epic pity:** guaranteed Epic+ after 50 spins without one. Real effect: Epic+ goes from 5.07% to about **5.47% over the long run** (~7.8% of 50-spin streaks reach it).
+  - **Legendary pity** ✅: guaranteed **Legendary+** after **300 spins** without one (~12.5 min of spinning). Legendary+ goes from 1.111% to about **1.152%**; it rescues the unluckiest ~3.5% of players. (500 spins would almost never trigger, 0.4%.)
+  - If both are due on the same spin, Legendary+ wins. A Legendary+ result resets **both** counters; an Epic resets only the Epic one. The counter is saved and shown ("Epic+ guaranteed in 23 spins"), and on the guaranteed spin the Odds screen shows Epic+ only.
 - **First spin:** the very first spin is guaranteed Rare+ (matches the tutorial; set in `Rarities.luau`). The Odds screen shows "Next spin: Rare+ guaranteed" while it applies.
   - ⚠️ LIHFOLK warns a guaranteed great first roll "teaches the wrong odds" (one measured project removed it after playtesting). Keep it for now; check in [[10 Playtest Log]] whether new players expect every spin to be good.
 - ⚠️ **Rolls happen on the server** with a server `Random.new()` object, so exploiters can't fake them.
@@ -84,7 +87,8 @@
   | Divine | 2,000 |
   | Secret | 10,000 |
   - About **2.5 Shards per spin** at 1x luck → ~60 a minute of spinning.
-- **Upgrading:** Shards + yen level an owned ability from **1 to 10**. Each level = **+4% power**, so a level-10 ability is **+36%**, about one rarity tier higher.
+- ✅ **Levels belong to the ability type**, not the copy: level Thunder Lance to 7 and every Thunder Lance you own or roll later is level 7. Duplicates never feel bad, and deleting or replacing a copy never loses levels. You need to own at least one copy to upgrade it.
+- **Upgrading:** Shards + yen level an ability from **1 to 10**. Each level = **+4% power**, so a level-10 ability is **+36%**, about one rarity tier higher.
   | Level up | Shards | Yen |
   |---|---|---|
   | 1 → 2 | 25 | 100 |
@@ -106,6 +110,7 @@
   - **Full storage:** you can still spin. Keep asks which ability to replace.
   - **Auto Spin** keeps results at or above your chosen rarity (default Epic+) and skips the rest. It stops with "Storage full" when there's no room.
 - Start small: **10–15 abilities for MVP**, and add more in updates.
+- ✅ **Index:** every ability you roll is recorded in the **Index** even if you skip it, so kids can complete the collection without hoarding storage.
 
 ### Combat / Battlegrounds
 PvP works like a Roblox **battlegrounds** game: one open arena, drop in anytime, no rounds, respawn in seconds. Everyone shares the same basic moveset, and the abilities you roll are your special moves on top. *(Source: LIHFOLK "Genre Playbook - Battlegrounds and Arena Fighters".)*
@@ -134,6 +139,14 @@ PvP works like a Roblox **battlegrounds** game: one open arena, drop in anytime,
   - It only boosts spins at the **Arena Spin Machine**, which stands *inside* the arena. Spinning with your streak means standing where others can hunt you.
   - Everyone sees the streak: a 🔥 flame above your head and "PlayerA is on a 5 KO streak!" in the kill feed. Ending someone's streak pays bonus yen (**+25 ¥ per streak KO**, so ending a 6-streak pays +150 ¥).
   - The bonus is flat +0.5x (doesn't grow with longer streaks) and counts toward the 5x cap. It's free luck, so it's fine for restricted players too.
+- **Repeat KOs on the same player** ✅ (stops friends farming each other): allowed, but the rewards shrink, and the count **resets every day** (00:00 UTC). It's saved, so rejoining doesn't reset it.
+  | KO on the same player today | Yen | Counts toward your streak? |
+  |---|---|---|
+  | 1st | 100% (25 ¥) | yes |
+  | 2nd | 50% (12 ¥) | yes |
+  | 3rd | 25% (6 ¥) | yes |
+  | 4th and later | 10% (2 ¥) | no |
+  - The streak-ending bonus shrinks the same way, so you can't farm it by letting a friend end your streak again and again.
 - ⚠️ **Server-authoritative combat:** the attacker's client plays the animation and VFX instantly, but the **server** decides every hit. It checks the attacker is alive and not stunned, the move is off cooldown (server clock), the target is in range plus a small lag margin, and the move didn't hit more targets than it's allowed. Each fighter has a state on the server (idle / attacking / blocking / stunned / ragdolled / dashing) and illegal moves get rejected.
 - **Every move is data:** damage, cooldown, hitbox size, stun time and knockback live in a config file, not in scripts.
 - **Test with lag:** two clients with simulated latency (100 ms and 250 ms) for every combo before shipping.

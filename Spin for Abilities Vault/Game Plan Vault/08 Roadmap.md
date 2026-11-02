@@ -30,7 +30,8 @@
 
 **Spins & abilities**
 - [ ] Grow to 10–15 abilities across all rarities
-- [ ] Pity (Epic+ after 50) and guaranteed Rare+ on the first spin
+- [ ] Pity (Epic+ after 50, Legendary+ after 300) and guaranteed Rare+ on the first spin
+- [ ] Simple Index: every ability ever rolled (kept or skipped) vs "???"
 - [ ] Reveal animation that gets bigger with rarity
 - [ ] Server-wide announcement for Mythic / Divine / Secret
 - [ ] Skipping gives Shards; Upgrade button levels abilities 1–10 with Shards + yen (+4% power per level)
@@ -42,6 +43,7 @@
 **Economy**
 - [ ] Yen on KO (25 yen per KO)
 - [ ] KO streaks: 3+ KOs = 🔥 + +0.5x luck at the Arena Spin Machine; ends on KO or leaving the arena; ending a streak pays bonus yen
+- [ ] Repeat KOs on the same player pay 100/50/25/10% (4th+ doesn't count for streaks), reset daily at 00:00 UTC
 - [ ] Buy luck potions with yen (100 yen each)
 - [ ] Luck potions (+1x for 5 min, on-screen timer, stronger one pauses weaker, blocked at the 5x cap)
 - [ ] Playtime rewards at 5 / 10 / 15 / 20 min
@@ -90,7 +92,7 @@
 Roughly one update every 1–2 weeks, so returning players always see something new.
 - [ ] **Update 1:** **Events / Biomes** on a server clock (needs an element on every ability) + new abilities + Daily login rewards (7-day streak)
 - [ ] **Update 2:** Quests (daily/session goals) + Group join reward
-- [ ] **Update 3:** Collection Index + Leaderboards (KOs, rarest ability, spins)
+- [ ] **Update 3:** Index completion rewards + Leaderboards (KOs, rarest ability, spins, longest KO streak, highest ability level)
 - [ ] **Update 4:** Awakening for level-10 abilities + player titles
 - [ ] **Later shop:** +10 Storage, x2 Yen, Super Luck Potion, Server Luck
 - [ ] **New areas:** Area 2 (5,000 spins), Area 3 (15,000), Area 4 (50,000), one per update or as big updates

@@ -1,6 +1,6 @@
 # 🎮 Game Plan – Home
 
-**Working title:** Spin an Anime Abilities
+**Name:** Spin for Abilities ✅
 **Genre:** RNG ability roller + battlegrounds PvP
 **Platform:** Roblox
 **Status:** 📝 Planning
