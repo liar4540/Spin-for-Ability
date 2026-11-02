@@ -211,7 +211,8 @@ Every client → server remote goes through `RemoteGuard`, in this order *(LIHFO
 
 **Tests:** roll 1,000,000 times at luck 1x, 2x and 5x, and on a pity spin, and check the counts match `Odds.Compute` (chi-square test). Expected at 1x: Common 55.38%, Uncommon 27.69%, Rare 11.87%, Epic 3.956%, Legendary 0.9989%, Ascended 0.09999%, Mythic 0.0100%, Divine 0.0020%, Secret 0.0004%. (A million rolls only gives ~4 Secrets, so test Secret/Mythic separately with a forced high luck or a bigger run.)
 
-> ⚠️ **Code to update:** the repo's `Rarities.luau` still has the old 6 tiers (Rare 1/5, Epic 1/20). It needs the 9 tiers above, a `Power` multiplier per tier and a `Shards` value per tier, and `OddsTest` needs the new expected numbers. Also: the Legendary pity (`Odds.MinRarityFor` + a second counter), levels moved from `Inventory` to `Levels` per ability type in `DataService`, and the project name in `default.project.json` / README → **Spin for Abilities**.
+> ✅ **Done in code:** 9 tiers with `Power` and `Shards` per tier in `Rarities.luau`, Legendary pity (`Odds.MinRarityFor` + `LegendaryPityCounter`), new `OddsTest` numbers, project name **Spin for Abilities**.
+> ⚠️ **Still to code:** giving Shards on Skip, the `UpgradeAbility` remote, levels per ability type (`Levels` in `DataService`), KO streaks, repeat-KO rewards.
 
 ## Tools / workflow
 **Decision: Rojo for code, Studio for building.** Rojo 7.7.1 is already set up in the project folder.
