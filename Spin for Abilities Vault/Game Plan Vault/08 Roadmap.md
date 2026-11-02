@@ -90,7 +90,7 @@
 
 ## Post-launch updates
 Roughly one update every 1–2 weeks, so returning players always see something new.
-- [ ] **Update 1:** **Events / Biomes** on a server clock (needs an element on every ability) + new abilities + Daily login rewards (7-day streak)
+- [ ] **Update 1:** **Events / Biomes** on a server clock (boost one ability type, e.g. Melee x3) + new abilities + Daily login rewards (7-day streak)
 - [ ] **Update 2:** Quests (daily/session goals) + Group join reward
 - [ ] **Update 3:** Index completion rewards + Leaderboards (KOs, rarest ability, spins, longest KO streak, highest ability level)
 - [ ] **Update 4:** Awakening for level-10 abilities + player titles

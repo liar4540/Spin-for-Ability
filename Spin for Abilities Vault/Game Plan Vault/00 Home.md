@@ -19,3 +19,4 @@
 - [[08 Roadmap]]: milestones & tasks
 - [[09 Ideas Inbox]]: dump random ideas here
 - [[10 Playtest Log]]
+- [[11 Abilities]]: the 16 launch abilities, how each looks, Blender VFX plan

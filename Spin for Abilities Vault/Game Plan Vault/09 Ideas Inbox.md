@@ -19,7 +19,7 @@ _Dump ideas here, sort them into other notes later._
 - Combo bonus: certain pairs (fire + wind, ice + lightning) get a special combined effect
 
 ## Gameplay ideas → [[02 Core Loop]]
-- Ability "elements" (fire, ice, lightning, shadow, light) with simple strengths, e.g. ice slows fire users
+- ~~Ability "elements" (fire, ice, lightning, shadow, light) with simple strengths, e.g. ice slows fire users~~ *(dropped: no elements; events boost ability types instead)*
 - ~~KO streaks: 3 KOs in a row shows "ON FIRE" above your head and gives bonus yen~~ *(moved to [[03 Systems]] → KO Streak Luck)*
 - Bounty: the player with the most KOs gets a bounty; whoever KOs them gets extra yen
 - Boss dummy every 10 minutes that everyone fights together for spins

@@ -15,7 +15,7 @@
 | Monetization | Game passes + dev products | MVP | ⬜ |
 | Odds & Policy check | Odds shown for every ability; paid luck blocked where a country restricts it | MVP (required before selling any luck) | ⬜ |
 | Areas / Zones | Areas unlock by total spins and give a luck bonus | MVP (Area 1 + VIP Area) / Later (Areas 2–4) | ⬜ |
-| Events / Biomes | Server-clock events that boost some abilities ("⚡ Storm: Thunder abilities x3") | Later (first post-launch update) | ⬜ |
+| Events / Biomes | Server-clock events that boost one ability type ("⚔️ Brawl Hour: Melee abilities x3") | Later (first post-launch update) | ⬜ |
 | Awakening / Titles | Awaken max-level abilities, show-off titles | Later | ⬜ |
 | Quests | Daily/session goals for rewards | Later | ⬜ |
 | Daily Login Rewards | 7-day streak rewards | Later | ⬜ |
@@ -191,10 +191,11 @@ PvP works like a Roblox **battlegrounds** game: one open arena, drop in anytime,
 - ⚠️ **The server decides which machine you're at** and which luck applies, never the client.
 
 ### Events / Biomes (Later: first post-launch update)
-- ✅ **Decided.** Short events on a **server clock**, so every server agrees without messaging *(LIHFOLK: Teardown - Sol's RNG)*: e.g. "⚡ Storm: Thunder abilities x3 for 10 min", "🌑 Eclipse: Shadow abilities x3".
-- During an event, abilities with that element are more likely **within their rarity** (the rarity odds don't change). The Odds screen shows the event's effect live.
+- ✅ **Decided.** Short events on a **server clock**, so every server agrees without messaging *(LIHFOLK: Teardown - Sol's RNG)*.
+- ✅ **No elements.** Events boost an **ability type** instead: e.g. "⚔️ Brawl Hour: Melee abilities x3 for 10 min", "🎯 Sniper Storm: Projectile abilities x3", "🌀 Blink Frenzy: Movement abilities x3". Or a single featured ability ("⭐ Spotlight: Thunder Lance x5").
+- During an event, the boosted abilities are more likely **within their rarity** (the rarity odds don't change). The Odds screen shows the event's effect live.
 - One random event every ~30–60 min, announced 1 min before with a banner. Gives players a reason to stay and come back.
-- Needs an **element** on every ability (fire, ice, lightning, shadow, light…), so plan that with the ability design.
+- Every rarity should have abilities of several types, so each event has something to boost.
 
 ### Later
 - **Awakening:** level-10 abilities can awaken (new VFX or an extra effect).
