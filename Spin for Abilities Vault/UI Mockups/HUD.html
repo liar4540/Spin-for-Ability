@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#141826;--card:#1F2538;--stroke:#0A0C14;--gold:#FFC83D;--cyan:#3DE0FF;--green:#4CD964;--red:#FF4D5E;--purple:#A64DFF}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1456px;height:819px;overflow:hidden;font-family:'Fredoka',sans-serif;color:#fff;position:relative;
+ background:linear-gradient(#8DD3F5 0 58%,#6CC26E 58% 100%)}
+.h{font-family:'Luckiest Guy',sans-serif;letter-spacing:.5px;-webkit-text-stroke:1.5px var(--stroke);paint-order:stroke fill}
+.pill{position:absolute;background:var(--navy);border:3px solid var(--stroke);border-radius:999px;display:flex;align-items:center;gap:10px;padding:0 14px}
+.topbar{position:absolute;top:0;left:0;right:0;height:62px;border-bottom:2px dashed rgba(0,0,0,.35);font-size:13px;color:#333;padding:22px 18px}
+.plus{margin-left:auto;width:36px;height:36px;border-radius:50%;background:var(--green);border:3px solid var(--stroke);display:grid;place-items:center;font:28px 'Luckiest Guy';box-shadow:0 3px 0 #1d7a32}
+.ic{width:28px;height:28px;border-radius:50%;display:grid;place-items:center}
+/* left column */
+#coins{top:78px;left:24px;width:282px;height:52px;font-size:28px}
+#spins{top:140px;left:24px;width:282px;height:52px;font-size:28px}
+#prog{position:absolute;top:202px;left:24px;width:282px}
+#prog .bar{height:16px;background:var(--navy);border:3px solid var(--stroke);border-radius:99px;overflow:hidden}
+#prog .bar i{display:block;height:100%;width:68%;background:linear-gradient(var(--gold),#E9A800)}
+#prog .lbl{font-size:15px;font-weight:700;margin-top:3px;text-shadow:0 0 3px #000,0 0 3px #000}
+.mbtn{position:absolute;left:24px;width:72px;height:72px;border-radius:16px;background:var(--card);border:3px solid var(--stroke);box-shadow:0 5px 0 var(--stroke);display:grid;place-items:center;font-size:30px}
+.mbtn.shop{background:linear-gradient(#FFD866,#F2AE00);width:84px;height:84px;font-size:13px;flex-direction:column}
+.dot{position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;background:var(--red);border:3px solid var(--stroke)}
+#free{top:586px;left:24px;height:42px;font-size:16px;font-weight:700}
+/* center */
+#luck{top:78px;left:50%;transform:translateX(-50%);height:50px;font-size:26px}
+#potion{top:138px;left:50%;transform:translateX(-50%);height:40px;font-size:20px}
+#announce{position:absolute;top:188px;left:50%;transform:translateX(-50%);background:var(--navy);border:3px solid var(--red);outline:3px solid var(--stroke);border-radius:14px;padding:10px 24px;font-weight:700;font-size:18px;white-space:nowrap}
+#zone{position:absolute;top:262px;width:100%;text-align:center;font-size:52px;color:#FF5A6A;-webkit-text-stroke:3px var(--stroke)}
+/* toasts */
+.toast{position:absolute;right:24px;height:44px;border-radius:999px;background:var(--navy);border:3px solid var(--stroke);padding:0 18px;display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px}
+/* bottom */
+#hp{position:absolute;top:628px;left:500px;width:390px;height:30px;background:var(--navy);border:3px solid var(--stroke);border-radius:99px;overflow:hidden}
+#hp i{display:block;height:100%;width:62%;background:linear-gradient(#6EE38A,#2FB04F)}
+#hptxt{position:absolute;top:630px;left:902px;font-size:22px}
+#spin{position:absolute;top:670px;left:580px;width:296px;height:96px;border-radius:18px;background:linear-gradient(#8FF0FF,#22C3E6);border:4px solid var(--stroke);box-shadow:0 6px 0 #0d6f86;text-align:center;padding-top:8px}
+#spin .big{font-size:46px;line-height:1}
+#spin .small{font-size:18px}
+.side{position:absolute;top:678px;width:80px;height:80px;border-radius:16px;background:var(--card);border:3px solid var(--stroke);box-shadow:0 5px 0 var(--stroke);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:14px}
+#pity{position:absolute;top:778px;width:100%;text-align:center;font-weight:700;font-size:16px;text-shadow:0 0 3px #000,0 0 3px #000}
+/* ability slots */
+.slot{position:absolute;width:92px;height:92px;border-radius:16px;background:var(--navy);border:5px solid;outline:3px solid var(--stroke);box-shadow:0 6px 0 var(--stroke);display:grid;place-items:center;font-size:40px}
+.slot .k{position:absolute;top:2px;left:8px;font:16px 'Luckiest Guy'}
+.slot .cd{position:absolute;inset:0;border-radius:11px;background:conic-gradient(rgba(0,0,0,.45) 0 62%,transparent 62%)}
+.slot .cdn{position:absolute;bottom:2px;right:6px;font-size:20px;z-index:2;background:var(--stroke);border-radius:8px;padding:2px 6px}
+.stick{position:absolute;border-radius:50%;border:3px solid rgba(255,255,255,.6);background:rgba(255,255,255,.15)}
+/* world placeholders */
+.prop{position:absolute;border:3px solid var(--stroke);border-radius:6px}
+</style></head><body>
+
+<div class="topbar">Roblox top bar: keep clear</div>
+<div class="prop" style="left:172px;top:322px;width:234px;height:176px;background:#E8D7B0"></div>
+<div class="prop" style="left:982px;top:276px;width:280px;height:222px;background:#C8B48A"></div>
+<div class="prop" style="left:638px;top:320px;width:180px;height:236px;background:#1B2030;border-radius:24px 24px 6px 6px"><div style="margin:30px auto 0;width:130px;height:86px;background:#3BDCF8;border:3px solid var(--stroke);border-radius:10px"></div></div>
+
+<!-- left -->
+<div class="pill" id="coins"><span class="ic" style="background:var(--gold);border:3px solid #C98A00"></span><span class="h">1,250</span><span class="plus">+</span></div>
+<div class="pill" id="spins"><span class="ic" style="border:3px solid var(--cyan);border-radius:7px;color:var(--cyan);font-size:14px">⚄</span><span class="h">12 Spins</span><span class="plus">+</span></div>
+<div id="prog"><div class="bar"><i></i></div><div class="lbl">Area 2: 340 / 500</div></div>
+
+<div class="mbtn shop" style="top:262px;display:flex"><span style="font-size:30px">🛒</span><span class="h">SHOP</span><span class="dot"></span></div>
+<div class="mbtn" style="top:362px">🎒<span class="dot"></span></div>
+<div class="mbtn" style="top:448px">📖</div>
+<div class="mbtn" style="top:534px">⚙️</div>
+<div class="pill" id="free" style="top:549px;left:110px;height:42px">🎁 Free spin in 2:14</div>
+
+<!-- center -->
+<div class="pill" id="luck"><span style="color:var(--green)">🍀</span><span class="h">1.3x Luck</span></div>
+<div class="pill" id="potion"><span style="color:var(--purple)">🧪</span><span class="h">x2 Luck 4:32</span></div>
+<div id="announce">🔥 PlayerName rolled <span style="color:#FF3B3B">Inferno Fist</span> [MYTHIC] (1 in 1,000)!</div>
+<div id="zone" class="h">⚔️ PvP Zone</div>
+
+<!-- toasts -->
+<div class="toast" style="top:290px"><span class="h" style="color:var(--gold);font-size:20px">+25 Coins</span>KO!</div>
+<div class="toast" style="top:344px;opacity:.85"><span class="h" style="color:var(--cyan);font-size:20px">+1 Spin</span>Playtime</div>
+<div class="toast" style="top:398px;opacity:.55">✅ Quest done: Get 5 KOs</div>
+
+<!-- bottom -->
+<div class="stick" style="left:42px;top:640px;width:144px;height:144px"><div class="stick" style="left:40px;top:40px;width:58px;height:58px;background:rgba(255,255,255,.5)"></div></div>
+<div id="hp"><i></i></div><div id="hptxt" class="h">62 HP</div>
+<div class="side" style="left:484px">🔒<span class="h">Auto</span></div>
+<div id="spin"><div class="big h">SPIN</div><div class="small h">12 left</div></div>
+<div class="side" style="left:892px">📊<span class="h">Odds</span></div>
+<div id="pity">Epic+ guaranteed in 23 spins</div>
+
+<!-- ability slots: arc around jump button -->
+<div class="slot" style="left:1012px;top:690px;border-color:#FF3B3B"><span class="k">1</span>🔥</div>
+<div class="slot" style="left:1046px;top:572px;border-color:var(--gold)"><span class="k">2</span>⚡<span class="cd"></span><span class="cdn h">3s</span></div>
+<div class="slot" style="left:1160px;top:540px;border-color:#B0B4BE;opacity:.85"><span class="k">3</span>🔒</div>
+<div class="stick" style="left:1308px;top:672px;width:114px;height:114px;display:grid;place-items:center;color:#2d5a2f;font-size:16px">Jump</div>
+</body></html>
