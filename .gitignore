@@ -11,3 +11,7 @@
 # OS files
 .DS_Store
 Thumbs.db
+
+# Secrets (Roblox Open Cloud API key etc.)
+.env
+**/.env

@@ -249,7 +249,7 @@ local function validateChoice(choice: unknown, slot: unknown, replaceUniqueId: u
 	if not RemoteGuard.IsOneOf(choice, CHOICES) then
 		return false
 	end
-	if slot ~= nil and not RemoteGuard.IsInteger(slot, 1, 3) then
+	if slot ~= nil and not RemoteGuard.IsInteger(slot, 1, Economy.MaxSlots) then
 		return false
 	end
 	if replaceUniqueId ~= nil and not RemoteGuard.IsString(replaceUniqueId, 64) then

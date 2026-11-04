@@ -7,7 +7,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local EVENTS = {
 	-- Client → Server
-	"SetAutoSpin",
 	"EquipAbility",
 	"UnequipAbility",
 	"DeleteAbility",
@@ -22,17 +21,14 @@ local EVENTS = {
 	"ClaimPlaytimeReward",
 	-- Server → Client
 	"DataUpdated",
-	"SpinResult",
-	"Announcement",
-	"AreaUnlocked",
 	"HitEffect",
 	"Knockback",
 	"KillFeed",
+	"AbilityUsed",
+	"AbilityHit", -- a projectile hit something: (attacker character, abilityId, position, normal)
 }
 
 local FUNCTIONS = {
-	"RequestSpin",
-	"ChooseResult",
 	"RedeemCode",
 }
 

@@ -23,7 +23,7 @@ export type PlayerData = {
 	Yen: number,
 
 	Inventory: { [string]: OwnedAbility }, -- [uniqueId] = ability
-	Equipped: { string | false }, -- uniqueId per slot, false = empty (3 slots)
+	Equipped: { string | false }, -- uniqueId per slot, false = empty (4 slots)
 	Locked: { [string]: boolean }, -- [uniqueId] = true
 	MaxStorage: number,
 	Discovered: { [string]: boolean }, -- [abilityId] = true once ever rolled (Index + "NEW!")
@@ -46,7 +46,7 @@ local function defaultData(): PlayerData
 		Version = 1,
 		Yen = 0,
 		Inventory = {},
-		Equipped = { false, false, false },
+		Equipped = { false, false, false, false },
 		Locked = {},
 		MaxStorage = Economy.MaxStorage,
 		Discovered = {},

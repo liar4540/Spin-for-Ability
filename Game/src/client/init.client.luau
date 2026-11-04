@@ -11,12 +11,12 @@ type Controller = {
 
 local ORDER = {
 	"HUDController",
-	"SpinController",
 	"CombatController",
 	"AbilityController",
 	"InventoryController",
 	"ShopController",
 	"SettingsController",
+	"VFXTestController",
 }
 
 local loaded: { Controller } = {}

@@ -6,6 +6,7 @@
 -- Numbers are placeholders: tune them in playtests.
 
 local Types = require(script.Parent.Parent.Types)
+local Assets = require(script.Parent.Assets)
 
 type AbilityDef = Types.AbilityDef
 
@@ -18,7 +19,27 @@ local Abilities: { AbilityDef } = {
 		Damage = 12,
 		Cooldown = 5,
 		Range = 6,
+		WindupSeconds = 0.27,
+		HitboxWidth = 5,
+		Knockback = 22, -- "small knockback" (vault): about 4 studs on a dummy
+		AnimationId = nil, -- uploaded animation id; nil plays the Studio test animation (client/Abilities/Pose)
+		Icon = Assets.Icons.EmberFist,
 		Description = "A fiery punch with a small knockback.",
+	},
+	{
+		Id = "PebbleToss",
+		Name = "Pebble Toss",
+		Rarity = "Common",
+		Type = "Projectile",
+		Damage = 8,
+		Cooldown = 4,
+		Range = 60, -- 0.75 s of flight
+		WindupSeconds = 0.4, -- the animation's "Release" marker (frame 12 @ 30 fps)
+		ProjectileSpeed = 80,
+		ProjectileRadius = 0.6, -- rock is 0.8 across; a little extra so close calls on a laggy screen still hit
+		Knockback = 8,
+		AnimationId = nil, -- uploaded animation id; nil plays the Studio test animation (client/Abilities/Pose)
+		Description = "Throws a quick rock that shatters into chips on hit.",
 	},
 	{
 		Id = "GaleStep",

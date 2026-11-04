@@ -34,6 +34,15 @@ export type AbilityDef = {
 	Cooldown: number, -- seconds
 	Range: number, -- studs
 	Description: string,
+	-- Melee timing/feel. Optional until every ability has its own.
+	WindupSeconds: number?, -- from key press to the hit (matches the animation)
+	HitboxWidth: number?, -- studs, side to side
+	Knockback: number?, -- studs/second pushed away from the attacker
+	-- Projectile flight. WindupSeconds = when it leaves the hand; Range = how far it flies.
+	ProjectileSpeed: number?, -- studs/second
+	ProjectileRadius: number?, -- studs, the sphere the server sweeps along the path
+	AnimationId: string?, -- uploaded animation ("rbxassetid://..."); nil = Studio-only test animation
+	Icon: string?, -- image id shown on the hotbar and inventory cards (Config/Assets)
 }
 
 -- One row of the odds screen: the real chance of one ability.

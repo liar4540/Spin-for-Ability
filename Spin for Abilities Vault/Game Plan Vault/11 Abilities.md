@@ -55,7 +55,19 @@ Power multiplier per rarity is x1.35 per tier ([[03 Systems]] → Ability power 
 - Each effect also gets a **low** version (2–3 layers) for phones and crowded fights.
 - Previews are rendered at game camera distance with the Standard view transform. A preview is a check, not the result: judge every effect in Studio at game speed, on a phone too.
 
+**How kit meshes reach Roblox (decided 2026-11-03):** scripts can't upload meshes (`AssetService.CreateAssetAsync` is "not available yet"), and runtime EditableMesh is off for this experience (Game Settings → Security → *Allow Mesh / Image APIs*). So for now Blender **renders each kit mesh into a sprite** (orthographic, transparent, white/grey) that's uploaded as an image and played on oriented particles: flat on the ground, upright facing the punch, or facing the camera. Real MeshParts come back once the meshes are imported with Import 3D (or that setting is turned on).
+
 ## Build order
-1. Shared mesh kit + preview renders.
-2. MVP abilities first: **Ember Fist, Thunder Lance, Blood Moon Slash** (one melee, one projectile, one big slash).
+1. Shared mesh kit + preview renders. ✅
+2. MVP abilities first: **Ember Fist** ✅, Thunder Lance, Blood Moon Slash (one melee, one projectile, one big slash).
 3. The rest in rarity order.
+
+## Ember Fist: built ✅ (2026-11-03)
+Look from `images/abilities/fiery fist.png`. Plays from the hotbar (keys 1–4, 4 slots; see [[03 Systems]], which still says 2–3).
+- **Blender:** `Game/assets/vfx/_src/build_ember_fist.py` (headless). Reuses `shock_ring` + `crescent_thin` from the kit, adds `spike_burst.glb`, renders their sprites, paints the particle textures (4-frame flame flipbook, glow, spark streak, ember flake, smoke), crops the icon from the reference, and renders `previews/ember_fist.png`.
+- **Asset ids:** `src/shared/Config/Assets.luau` (the one place for ids).
+- **Timing:** wind-up 0–0.21 s (fist glow + flames + trail + swing-arc sprite), hit at **0.27 s** (= `WindupSeconds`; flash, spike burst, upright ring ×2, flame burst, spark streaks, light, shake), aftermath to ~1.6 s (ground ring ×2, rising embers, smoke).
+- **Budget:** full ≈ 80 particles, 2 lights, 2 sounds; Low ≈ 35 (no arc, smoke, embers or second rings).
+- **Sound:** Pro Sound Effects (Roblox-licensed) "Fire Whoosh 15" on wind-up, "Fire Whoosh 2" on hit.
+- **Stats:** 12 base damage, 5 s cooldown, 6 studs range, 5-stud-wide box, knockback 22 (≈ 4 studs on a dummy).
+- **Animation:** keyframes live in `client/Abilities/EmberFist.luau`. In Studio they play as a temporary animation; **for the live game, upload it** (Animation Editor → publish) and paste the id into `AnimationId` in `Abilities.luau`.

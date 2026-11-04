@@ -38,7 +38,7 @@ local function buildTestPanel()
 
 	local frame = Instance.new("Frame")
 	frame.Size = UDim2.fromOffset(480, 150)
-	frame.Position = UDim2.new(0.5, -240, 1, -170)
+	frame.Position = UDim2.new(1, -496, 0, 16) -- top-right, clear of the ability hotbar
 	frame.BackgroundTransparency = 0.3
 	frame.BackgroundColor3 = Color3.new(0, 0, 0)
 	frame.Parent = gui
