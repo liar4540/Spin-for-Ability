@@ -67,7 +67,6 @@ local function onM1()
 		finisher = "S"
 	end
 	local camera = workspace.CurrentCamera
-	print("[M1 client] sent", finisher, "state:", state) -- DEBUG, remove later
 	m1Remote:FireServer(camera.CFrame.LookVector, finisher)
 end
 
@@ -75,9 +74,6 @@ end
 function CombatController.Start()
 	m1Remote = Remotes.Event("M1Attack")
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			print("[M1 client] click, gameProcessed =", gameProcessed) -- DEBUG, remove later
-		end
 		if gameProcessed then
 			return
 		end

@@ -121,9 +121,7 @@ end
 local function onM1(player: Player, aim: Vector3, finisherInput: string)
 	local character = player.Character
 	local root = rootOf(character)
-	print("[M1 server] got from", player.Name, "state:", character and StateService.GetState(character)) -- DEBUG
 	if not character or not root or not StateService.Can(character, "M1") then
-		print("[M1 server] blocked: can't M1 in this state") -- DEBUG
 		return
 	end
 
@@ -177,7 +175,6 @@ local function onM1(player: Player, aim: Vector3, finisherInput: string)
 			end
 		end
 
-		print("[M1 server] hit", index, "targets in box:", #targets, "best:", best and best.Name) -- DEBUG
 		if not best then
 			chain.nextAllowedAt += cfg.WhiffRecovery -- whiff punish
 			return
