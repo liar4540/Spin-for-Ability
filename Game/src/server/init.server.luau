@@ -25,6 +25,7 @@ local ORDER = {
 	"RemoteGuard",
 	"VFXTemplateService",
 	"HitboxService",
+	"StateService",
 	"CombatService",
 	"AbilityService",
 	"EconomyService",
