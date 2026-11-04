@@ -12,6 +12,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = Shared:WaitForChild("Config")
 local Remotes = require(Shared:WaitForChild("Remotes"))
+local Projectile = require(Shared:WaitForChild("Projectile"))
 local Types = require(Shared:WaitForChild("Types"))
 local Economy = require(Config:WaitForChild("Economy"))
 local Abilities = require(Config:WaitForChild("Abilities"))
@@ -174,9 +175,10 @@ local function useMelee(player: Player, character: Model, root: BasePart, def: A
 	end
 end
 
--- Flies a projectile in a straight line, sweeping a sphere along it every frame. The first
--- character or wall it touches is the hit: damage (characters only), then every client plays
--- the impact (AbilityHit). Nothing is sent if it flies its full range without touching anything.
+-- Flies a projectile in a straight line, one Projectile.Step every frame (a big hitbox sphere for
+-- characters, a small one the size of the projectile for walls and the ground). The first thing it
+-- touches is the hit: damage (characters only). Every client then plays the impact (AbilityHit),
+-- also when it flies its full range without touching anything (it shatters in the air there).
 local function useProjectile(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3)
 	task.wait(def.WindupSeconds or 0)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -189,36 +191,39 @@ local function useProjectile(player: Player, character: Model, root: BasePart, d
 	local chest = root.Position + Vector3.new(0, THROW_OFFSET.Y, 0)
 	local hand = chest + right * THROW_OFFSET.X + flat * THROW_OFFSET.Z
 	local speed = def.ProjectileSpeed or 80
-	local radius = def.ProjectileRadius or 0.5
-
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = { character }
+	local hitboxRadius = def.HitboxRadius or 0.5
+	local bodyRadius = def.ProjectileRadius or 0.5
+	local filters = Projectile.Filters(character)
 
 	-- First sweep: from the chest to the hand, so a target standing right in front still gets hit.
 	local position = chest
 	local travelled = -(hand - chest).Magnitude
 	local step = hand - chest
+	local hit: Projectile.Hit? = nil
 	while true do
-		local result = workspace:Spherecast(position, radius, step, params)
-		if result then
-			local model = result.Instance:FindFirstAncestorOfClass("Model")
-			local target = model and model:FindFirstChildOfClass("Humanoid")
-			if target and target.Health > 0 then
-				local power = Rarities.Defs[def.Rarity].Power
-				local knockback = flat * (def.Knockback or 0) + Vector3.new(0, (def.Knockback or 0) * 0.4, 0)
-				CombatService.DealDamage(player, target, def.Damage * power, knockback, def.Id)
-			end
-			abilityHit:FireAllClients(character, def.Id, result.Position, result.Normal)
-			return
+		hit = Projectile.Step(position, step, hitboxRadius, bodyRadius, filters)
+		if hit then
+			break
 		end
 		position += step
 		travelled += step.Magnitude
 		if travelled >= def.Range then
-			return
+			break
 		end
 		local dt = RunService.Heartbeat:Wait()
 		step = flat * math.min(speed * dt, def.Range - travelled)
+	end
+
+	if hit then
+		local target = hit.Humanoid
+		if target and target.Health > 0 then
+			local power = Rarities.Defs[def.Rarity].Power
+			local knockback = flat * (def.Knockback or 0) + Vector3.new(0, (def.Knockback or 0) * 0.4, 0)
+			CombatService.DealDamage(player, target, def.Damage * power, knockback, def.Id)
+		end
+		abilityHit:FireAllClients(character, def.Id, hit.Position, hit.Normal)
+	else
+		abilityHit:FireAllClients(character, def.Id, position, -flat) -- end of its range
 	end
 end
 

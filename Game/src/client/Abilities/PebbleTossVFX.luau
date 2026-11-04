@@ -7,23 +7,27 @@
 -- speed-line textures (Config/Assets).
 --
 --   1. Wind-up   0 – 0.4 s    rock sits in the right hand while the arm cocks behind the head.
---   2. Release   0.4 s        "Release" marker (frame 12): the rock leaves the hand at 80 studs/s,
+--   2. Release   0.4 s        "Release" marker (frame 12): the rock leaves the hand at 55 studs/s,
 --                             spinning 2 turns/s, speed lines behind it; dust puff at the feet.
---   3. Hit       AbilityHit   the SERVER decides the hit (AbilityService): white star flash,
---                             6–10 chips flying out under gravity, a small dust puff.
+--   3. Hit       AbilityHit   the SERVER decides the hit (AbilityService + shared/Projectile: a
+--                             2.5-stud hitbox for characters): white star flash, 8 chips bursting
+--                             back toward the thrower, a small dust puff. Flying its full range
+--                             without a hit shatters it in the air.
 -- The thrower plays 1–2 on the key press; everyone else from AbilityUsed; every client plays 3
 -- from AbilityHit. Others' throws release on a timer (their animation reaches us by replication,
 -- so we get no marker events for it).
 --
--- Budget per throw: ~20 particles, 1 beam, 1 rock + up to 10 chips (no physics: moved in code).
+-- Budget per throw: ~20 particles, 1 beam, 1 rock + 8 chips (unanchored, no collisions).
 -- Everything a throw makes lives in one Folder under workspace.ClientVFX and is destroyed when
 -- the throw is over; the character dying or leaving cleans it up too.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = Shared:WaitForChild("Config")
+local Projectile = require(Shared:WaitForChild("Projectile"))
 local Types = require(Shared:WaitForChild("Types"))
 local Abilities = require(Config:WaitForChild("Abilities"))
 local Assets = require(Config:WaitForChild("Assets"))
@@ -46,10 +50,14 @@ local CONFIG = {
 	MarkerGrace = 0.1, -- if our own track never fires the marker, release this much later anyway
 
 	-- Rock (studs, studs/second)
-	RockSpeed = def.ProjectileSpeed or 80,
+	RockSpeed = def.ProjectileSpeed or 55,
 	RockRange = def.Range,
 	RockSpinTurns = 2, -- turns per second, topspin
-	RockRadius = 0.4, -- for our own "stop at what it touched" check; the server decides real hits
+	RockSize = 1.2, -- studs across (the Blender rock is scaled to this)
+	-- Where our own rock stops: the same sweep as the server (shared/Projectile), which decides real hits
+	HitboxRadius = def.HitboxRadius or 2.5, -- finds characters
+	RockRadius = def.ProjectileRadius or 0.6, -- walls and the ground
+	ServerHitWait = 1.5, -- seconds after the rock stops: no AbilityHit by then (thrower left) → clean up
 
 	-- Launch dust at the feet
 	DustCountMin = 6,
@@ -63,24 +71,28 @@ local CONFIG = {
 	DustAhead = 1.2, -- studs in front of the root: just ahead of the front foot
 
 	-- Speed-line trail (Beam) behind the rock
-	TrailLength = 1.5,
-	TrailWidthHead = 1,
-	TrailWidthTail = 0.4,
+	TrailLength = 2.5,
+	TrailWidthHead = 0.6,
+	TrailWidthTail = 0.6,
 	TrailColor = "#F2F2F5",
 
 	-- Impact
 	FlareSeconds = 0.12,
 	FlareSize = 4.5, -- studs across at its biggest
 	FlareColor = "#FFFFFF",
-	ChipCountMin = 6,
-	ChipCountMax = 10,
-	ChipSpeedMin = 10,
-	ChipSpeedMax = 20,
-	ChipGravity = 80, -- studs/second²
-	ChipLifetime = 1, -- seconds, then the chip is gone
-	ChipFadeFrom = 0.7, -- fraction of the lifetime when chips start fading out
-	HitDustCount = 3,
-	HitDustLifetime = 0.5,
+	ImpactBack = 1, -- studs from the impact point back toward the thrower: chips start outside the target
+	ChipCount = 8,
+	ChipScale = 2.5, -- the Blender chips are 0.16–0.3 studs: x2.5 = 0.4–0.75, readable next to the 1.2 rock
+	ChipSpeedMin = 15, -- studs/second outward (sideways, on the thrower's side)...
+	ChipSpeedMax = 25,
+	ChipUpSpeed = 10, -- ...plus this much upward
+	ChipGravity = 80, -- studs/second²; Roblox's 196 drops them through the floor within 0.3 s
+	ChipSpinMax = 20, -- radians/second
+	ChipFadeSeconds = 0.8, -- fade out from the hit, then gone
+	HitDustCount = 4,
+	HitDustLifetime = 0.4,
+	HitDustSizeStart = 1,
+	HitDustSizeEnd = 2.2,
 
 	-- Asset ids (one place to change them: Shared/Config/Assets, Abilities)
 	DustTexture = Assets.Textures.PebbleDust,
@@ -94,8 +106,6 @@ export type Options = {
 	LocalHits: boolean?, -- true: the rock decides its own hit (VFX test, no server)
 	PlayAnimation: boolean?, -- play the throw animation on this character (always for our own)
 }
-
-type Chip = { Part: BasePart, Velocity: Vector3, Axis: Vector3, Spin: number, GroundY: number }
 
 type Cast = {
 	Character: Model,
@@ -270,7 +280,7 @@ local function launch(cast: Cast, root: BasePart, from: Vector3, flat: Vector3)
 	local rock = cast.Rock
 	rock.Transparency = 0
 	cast.Flying = true
-	local params = excludeParams(cast.Character)
+	local filters = Projectile.Filters(cast.Character)
 	local axis = flat:Cross(Vector3.yAxis) -- topspin: rolls forward over the top
 	local position = from
 	local travelled = 0
@@ -283,20 +293,22 @@ local function launch(cast: Cast, root: BasePart, from: Vector3, flat: Vector3)
 		end
 		local step = CONFIG.RockSpeed * dt * cast.TimeScale
 		step = math.min(step, CONFIG.RockRange - travelled)
-		local hit = if step > 0 then workspace:Spherecast(position, CONFIG.RockRadius, flat * step, params) else nil
-		if hit then
-			position = hit.Position
-			stopRock(cast)
-			if cast.LocalHits then
-				PebbleTossVFX.Hit(cast.Character, hit.Position, hit.Normal)
-			end
-			return
-		end
+		local hit = Projectile.Step(position, flat * step, CONFIG.HitboxRadius, CONFIG.RockRadius, filters)
 		position += flat * step
 		travelled += step
-		if travelled >= CONFIG.RockRange then
-			-- Flew its full range without touching anything: the server sends no hit, so we're done.
-			endCast(cast)
+		if hit or travelled >= CONFIG.RockRange then
+			-- It hit something, or flew its full range (it shatters in the air there).
+			stopRock(cast)
+			if cast.LocalHits then
+				PebbleTossVFX.Hit(cast.Character, if hit then hit.Position else position, if hit then hit.Normal else -flat)
+			else
+				-- The server's AbilityHit plays the impact. If it never comes (the thrower left), clean up.
+				task.delay(CONFIG.ServerHitWait / cast.TimeScale, function()
+					if casts[cast.Character] == cast then
+						endCast(cast)
+					end
+				end)
+			end
 			return
 		end
 		angle += math.pi * 2 * CONFIG.RockSpinTurns * dt * cast.TimeScale
@@ -322,6 +334,7 @@ function PebbleTossVFX.Play(character: Model, aim: Vector3, isLocal: boolean, op
 	f.Name = `PebbleToss_{character.Name}`
 	f.Parent = folder()
 	local rock = template("Rock"):Clone()
+	rock.Size *= CONFIG.RockSize / math.max(rock.Size.X, rock.Size.Y, rock.Size.Z)
 	rock.Transparency = 1
 	rock.CFrame = grip(hand)
 	rock.Parent = f
@@ -395,8 +408,15 @@ function PebbleTossVFX.Hit(character: Model, position: Vector3, normal: Vector3)
 	local f = Instance.new("Folder")
 	f.Name = "PebbleTossHit"
 	f.Parent = folder()
-	local up = if normal.Magnitude > 0.01 then normal.Unit else Vector3.yAxis
-	local _, at = anchor(f, "Impact", CFrame.new(position + up * 0.2))
+
+	-- Everything starts ImpactBack studs from the impact point toward the thrower, so nothing
+	-- spawns inside what was hit.
+	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local back = if root then root.Position - position else normal
+	back = Vector3.new(back.X, 0, back.Z)
+	back = if back.Magnitude > 0.01 then back.Unit else Vector3.zAxis
+	local origin = position + back * CONFIG.ImpactBack
+	local _, at = anchor(f, "Impact", CFrame.new(origin))
 
 	-- White star flash: pops up and is gone in FlareSeconds.
 	local flare = emitter(at, timeScale, {
@@ -414,56 +434,53 @@ function PebbleTossVFX.Hit(character: Model, position: Vector3, normal: Vector3)
 	})
 	flare:Emit(1)
 
-	local _, ground = anchor(f, "HitDust", CFrame.new(groundBelow(position, character)))
-	dust(ground, timeScale, CONFIG.HitDustLifetime, 1.5, 3, Enum.NormalId.Top):Emit(CONFIG.HitDustCount)
+	-- Small dust puff where the rock broke.
+	dust(at, timeScale, CONFIG.HitDustLifetime, CONFIG.HitDustSizeStart, CONFIG.HitDustSizeEnd, Enum.NormalId.Top)
+		:Emit(CONFIG.HitDustCount)
 
-	-- Chips: moved in code (no physics), bounce once off the ground, fade, then gone.
-	local chips: { Chip } = {}
-	local floorY = groundBelow(position, character).Y
-	for _ = 1, math.random(CONFIG.ChipCountMin, CONFIG.ChipCountMax) do
+	-- Chips: real (unanchored) parts that pass through everything, burst outward on the thrower's
+	-- side of the impact, spin, and fade out. A VectorForce cancels part of Roblox's gravity to
+	-- leave ChipGravity. Physics can't run slower, so at TimeScale < 1 the speeds are scaled by
+	-- TimeScale and gravity by TimeScale²: the same arc, played slower.
+	local lift = workspace.Gravity - CONFIG.ChipGravity * timeScale * timeScale
+	local fade = TweenInfo.new(CONFIG.ChipFadeSeconds / timeScale, Enum.EasingStyle.Linear)
+	for _ = 1, CONFIG.ChipCount do
 		local chip = template(`Chip{math.random(1, 5)}`):Clone()
-		chip.CFrame = CFrame.new(position + up * 0.15) * CFrame.Angles(math.random() * 6.28, math.random() * 6.28, 0)
+		chip.Size *= CONFIG.ChipScale
+		chip.Anchored = false
+		chip.CanCollide = false
+		chip.CanTouch = false
+		chip.CanQuery = false
+		chip.CFrame = CFrame.new(origin) * CFrame.Angles(math.random() * 6.28, math.random() * 6.28, math.random() * 6.28)
 		chip.Parent = f
-		local spread = Vector3.new(math.random() * 2 - 1, math.random() * 2 - 1, math.random() * 2 - 1)
-		local direction = (up + spread * 0.9 + Vector3.yAxis * 0.6).Unit
+
+		-- Any flat direction within 90° of the thrower: never into the target.
+		local out = CFrame.fromAxisAngle(Vector3.yAxis, (math.random() - 0.5) * math.pi):VectorToWorldSpace(back)
 		local speed = CONFIG.ChipSpeedMin + math.random() * (CONFIG.ChipSpeedMax - CONFIG.ChipSpeedMin)
-		table.insert(chips, {
-			Part = chip,
-			Velocity = direction * speed,
-			Axis = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5).Unit,
-			Spin = (8 + math.random() * 10) * (if math.random() < 0.5 then -1 else 1),
-			GroundY = floorY + chip.Size.Magnitude * 0.3,
-		})
+		local spinAxis = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5)
+		spinAxis = if spinAxis.Magnitude > 0.01 then spinAxis.Unit else Vector3.yAxis
+		chip.AssemblyLinearVelocity = (out * speed + Vector3.yAxis * CONFIG.ChipUpSpeed) * timeScale
+		chip.AssemblyAngularVelocity = spinAxis * (CONFIG.ChipSpinMax * (0.5 + math.random() * 0.5)) * timeScale
+		if lift > 0 then
+			local attachment = Instance.new("Attachment")
+			attachment.Parent = chip
+			local force = Instance.new("VectorForce")
+			force.Attachment0 = attachment
+			force.RelativeTo = Enum.ActuatorRelativeTo.World
+			force.ApplyAtCenterOfMass = true
+			force.Force = Vector3.new(0, chip:GetMass() * lift, 0)
+			force.Parent = chip
+		end
+		TweenService:Create(chip, fade, { Transparency = 1 }):Play()
 	end
 
-	local age = 0
-	local move: RBXScriptConnection
-	move = RunService.RenderStepped:Connect(function(dt)
-		local t = dt * timeScale
-		age += t
-		if age >= CONFIG.ChipLifetime then
-			move:Disconnect()
-			f:Destroy()
-			if cast then
-				endCast(cast)
-			end
-			return
-		end
-		local fade = math.clamp((age / CONFIG.ChipLifetime - CONFIG.ChipFadeFrom) / (1 - CONFIG.ChipFadeFrom), 0, 1)
-		for _, chip in chips do
-			chip.Velocity -= Vector3.new(0, CONFIG.ChipGravity * t, 0)
-			local cf = chip.Part.CFrame
-			local p = cf.Position + chip.Velocity * t
-			if p.Y < chip.GroundY and chip.Velocity.Y < 0 then
-				p = Vector3.new(p.X, chip.GroundY, p.Z)
-				chip.Velocity = Vector3.new(chip.Velocity.X * 0.5, -chip.Velocity.Y * 0.3, chip.Velocity.Z * 0.5)
-				chip.Spin *= 0.5
-			end
-			chip.Part.CFrame = CFrame.new(p) * CFrame.fromAxisAngle(chip.Axis, chip.Spin * t) * cf.Rotation
-			chip.Part.Transparency = fade
+	-- If this character's throw is cleaned up first (they left), the hit still finishes on its own.
+	task.delay(math.max(CONFIG.ChipFadeSeconds, CONFIG.HitDustLifetime) / timeScale, function()
+		f:Destroy()
+		if cast then
+			endCast(cast)
 		end
 	end)
-	-- If this character's throw is cleaned up first (they left), the hit still finishes on its own.
 end
 
 PebbleTossVFX.Config = CONFIG

@@ -40,7 +40,8 @@ export type AbilityDef = {
 	Knockback: number?, -- studs/second pushed away from the attacker
 	-- Projectile flight. WindupSeconds = when it leaves the hand; Range = how far it flies.
 	ProjectileSpeed: number?, -- studs/second
-	ProjectileRadius: number?, -- studs, the sphere the server sweeps along the path
+	ProjectileRadius: number?, -- studs, the projectile itself: walls and the ground stop it
+	HitboxRadius: number?, -- studs, the sphere swept along the path that finds characters (shared/Projectile)
 	AnimationId: string?, -- uploaded animation ("rbxassetid://..."); nil = Studio-only test animation
 	Icon: string?, -- image id shown on the hotbar and inventory cards (Config/Assets)
 }
