@@ -42,6 +42,9 @@ export type AbilityDef = {
 	ProjectileSpeed: number?, -- studs/second
 	ProjectileRadius: number?, -- studs, the projectile itself: walls and the ground stop it
 	HitboxRadius: number?, -- studs, the sphere swept along the path that finds characters (shared/Projectile)
+	-- Movement (dash). Range = studs dashed; WindupSeconds = when the dash starts.
+	MaxDashStuds: number?, -- studs; the server pulls back any dash that moves further
+	DashWindowSeconds: number?, -- seconds after the key press the server watches the dash
 	AnimationId: string?, -- uploaded animation ("rbxassetid://..."); nil = Studio-only test animation
 	Icon: string?, -- image id shown on the hotbar and inventory cards (Config/Assets)
 }

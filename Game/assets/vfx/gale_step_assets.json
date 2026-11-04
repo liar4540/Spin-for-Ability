@@ -1,0 +1,83 @@
+{
+ "wind_gradient": {
+  "assetId": "115854320689894",
+  "assetType": "Image",
+  "sha256": "2526b0644d31df1589116d4e0508557c21c6087cd34783fe90f4bf2c83354ca0",
+  "file": "assets/vfx/textures/wind_gradient.png",
+  "creatorUserId": 202024761
+ },
+ "wind_streaks": {
+  "assetId": "83090249483866",
+  "assetType": "Image",
+  "sha256": "1e42e3293ee5f1352cd9b8b7a43524821f0ee63a9476774b51bd45ae85c78c6c",
+  "file": "assets/vfx/textures/wind_streaks.png",
+  "creatorUserId": 202024761
+ },
+ "sparkle": {
+  "assetId": "76795312198770",
+  "assetType": "Image",
+  "sha256": "fda7ab5f3eb0ff3ba2a26cc5d245f6a74786bc6a4813403ebb122bd83aba8118",
+  "file": "assets/vfx/textures/sparkle.png",
+  "creatorUserId": 202024761
+ },
+ "soft_glow": {
+  "assetId": "134061496595746",
+  "assetType": "Image",
+  "sha256": "463712ae9fa7a19427e08edde80bbbd6b39be75c9d1b10447d68ccc97408dfb9",
+  "file": "assets/vfx/textures/soft_glow.png",
+  "creatorUserId": 202024761
+ },
+ "wind_wisp": {
+  "assetId": "115689752915482",
+  "assetType": "Image",
+  "sha256": "d3a4ba44a8ba6ff98f250bd6c2bd3cb1db1cb2f41867fc60084efe6a52dbc083",
+  "file": "assets/vfx/textures/wind_wisp.png",
+  "creatorUserId": 202024761
+ },
+ "wind_swirl_flipbook": {
+  "assetId": "76836933588665",
+  "assetType": "Image",
+  "sha256": "a9bb9649f9b23379a75ad0cc9a14505faa283ad2877a6a43ed81f8a259cd3ac5",
+  "file": "assets/vfx/textures/wind_swirl_flipbook.png",
+  "creatorUserId": 202024761
+ },
+ "wind_crescent_a": {
+  "assetId": "97251964717099",
+  "assetType": "Model",
+  "sha256": "32c0ac797a3d9f06d46745c63c0728c175b67846230eb060a956275b9cc5eaf9",
+  "file": "assets/wind_crescent_a.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "81358747084401"
+ },
+ "wind_crescent_b": {
+  "assetId": "139020940779892",
+  "assetType": "Model",
+  "sha256": "86b61fe24cd41dc15be0425de253165170cc13010c7ad403fd501025536d1cfc",
+  "file": "assets/wind_crescent_b.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "73019651433783"
+ },
+ "wind_ring": {
+  "assetId": "71169891453451",
+  "assetType": "Model",
+  "sha256": "824b29241b17ef7dee68e7fd7c7284a1b7d8a4d36be5176dddd759c7ca4eebc9",
+  "file": "assets/wind_ring.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "90664669742250"
+ },
+ "wind_spiral": {
+  "assetId": "85431287904931",
+  "assetType": "Model",
+  "sha256": "ad04534f1d6e1108d58cfeb42c47fed2d357162059afae2fa4a9eef1bda776c0",
+  "file": "assets/wind_spiral.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "115628997654552"
+ },
+ "gale_step_dash": {
+  "assetId": "130755455737261",
+  "assetType": "Animation",
+  "sha256": "83295140e5b4b1881688fecf46feee32d396c9ba97bf6691be879dd61b0a24a8",
+  "file": "assets/gale_step_dash.rbxmx",
+  "creatorUserId": 202024761
+ }
+}

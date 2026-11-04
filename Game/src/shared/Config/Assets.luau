@@ -4,6 +4,8 @@
 -- and is white/grey, recoloured in Studio (vault: 11 Abilities → Rules).
 -- The *Sprite textures are the shared kit meshes rendered from Blender (ring, spike burst, crescent):
 -- they're played on oriented particles, so no MeshPart upload is needed.
+-- Gale Step's ids (textures, wind meshes, animation) live in the CONFIG at the top of
+-- client/Abilities/GaleStepVFX (Game/assets/vfx/gale_step_assets.json has the full upload record).
 
 local Assets = {
 	Textures = {

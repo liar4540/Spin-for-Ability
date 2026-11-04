@@ -48,9 +48,13 @@ local Abilities: { AbilityDef } = {
 		Rarity = "Uncommon",
 		Type = "Movement",
 		Damage = 0,
-		Cooldown = 6,
-		Range = 20,
-		Description = "A quick dash with a wind trail.",
+		Cooldown = 4, -- the server checks this one (client/Abilities/GaleStepVFX CONFIG.COOLDOWN reads it)
+		Range = 30, -- studs dashed, toward where the camera faces; stops 2 studs short of walls
+		WindupSeconds = 0.2, -- the animation's "DashStart" marker (frame 6 @ 30 fps)
+		MaxDashStuds = 32, -- the server pulls a player back if one dash moves them further than this
+		DashWindowSeconds = 1, -- how long after the key press the server watches the dash
+		AnimationId = "rbxassetid://130755455737261", -- GaleStep_Dash (Game/assets/gale_step.blend)
+		Description = "An extremely fast dash with wind trails.",
 	},
 	{
 		Id = "ThunderLance",

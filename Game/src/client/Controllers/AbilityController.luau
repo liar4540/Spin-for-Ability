@@ -38,10 +38,13 @@ local KEYS: { [Enum.KeyCode]: number } = {
 	[Enum.KeyCode.Four] = 4,
 }
 
+local GaleStepVFX = require(AbilityEffects:WaitForChild("GaleStepVFX"))
+
 -- Abilities whose animation + VFX are built. The rest still work on the server, with no visuals yet.
 local EFFECTS: { [string]: Effect } = {
 	EmberFist = require(AbilityEffects:WaitForChild("EmberFist")) :: any,
 	PebbleToss = require(AbilityEffects:WaitForChild("PebbleTossVFX")) :: any,
+	GaleStep = GaleStepVFX :: any,
 }
 
 -- After using any ability, others can't start until this ends (so animations don't overlap).
@@ -252,7 +255,11 @@ function AbilityController.Use(slot: number)
 	busyUntil = now + BUSY_SECONDS
 
 	-- Aim where the character faces (soft-aim at the nearest enemy comes with mobile combat).
+	-- Dashes go where the camera faces instead.
 	local aim = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z).Unit
+	if def.Type == "Movement" then
+		aim = GaleStepVFX.Aim() or aim
+	end
 	useAbility:FireServer(slot, aim)
 
 	local effect = EFFECTS[def.Id]

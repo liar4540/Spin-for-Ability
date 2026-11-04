@@ -1,7 +1,8 @@
 --!strict
 -- AbilityService: storage, equip slots and using abilities (vault: 03 Systems → Abilities & Equip).
 -- Status: storage + equip (EquipAbility / UnequipAbility) and UseAbility for melee and
--- projectile abilities. AoE / Movement / Defense use come with those abilities. Delete/Lock come
+-- projectile abilities, and dashes (Movement: moved by the client, distance-checked here).
+-- AoE / Defense use come with those abilities. Delete/Lock come
 -- with the full Inventory screen.
 
 local HttpService = game:GetService("HttpService")
@@ -28,7 +29,7 @@ type AbilityDef = Types.AbilityDef
 
 -- Studio only: every player starts with these in storage, so abilities can be tested
 -- without spinning for them. Never runs in the live game.
-local STUDIO_STARTER_ABILITIES = { "EmberFist", "PebbleToss" }
+local STUDIO_STARTER_ABILITIES = { "EmberFist", "PebbleToss", "GaleStep" }
 
 -- Small allowance so a press sent the moment the cooldown ends isn't rejected because of ping.
 local LATENCY_ALLOWANCE = 0.2
@@ -48,6 +49,8 @@ end
 
 -- [player][abilityId] = server clock when it can be used again
 local readyAt: { [Player]: { [string]: number } } = {}
+-- [player] = the dash being watched (a newer dash replaces it)
+local dashWatches: { [Player]: RBXScriptConnection } = {}
 local abilityUsed: RemoteEvent
 local abilityHit: RemoteEvent
 
@@ -227,6 +230,42 @@ local function useProjectile(player: Player, character: Model, root: BasePart, d
 	end
 end
 
+-- Dashes are moved by the dashing player's own client (smooth on their screen). The server only
+-- watches: for `seconds` after the press, the character may move at most maxStuds sideways from
+-- where it was. Further than that, it's pulled back onto that circle and stopped there.
+local function watchDash(player: Player, root: BasePart, maxStuds: number, seconds: number)
+	local previous = dashWatches[player]
+	if previous then
+		previous:Disconnect()
+	end
+	local start = root.Position
+	local endsAt = os.clock() + seconds
+	local watch: RBXScriptConnection
+	watch = RunService.Heartbeat:Connect(function()
+		if os.clock() > endsAt or not root.Parent then
+			watch:Disconnect()
+			if dashWatches[player] == watch then
+				dashWatches[player] = nil
+			end
+			return
+		end
+		local moved = root.Position - start
+		local flat = Vector3.new(moved.X, 0, moved.Z)
+		if flat.Magnitude > maxStuds then
+			local allowed = start + flat.Unit * maxStuds
+			local rotation = root.CFrame - root.Position
+			root.CFrame = rotation + Vector3.new(allowed.X, root.Position.Y, allowed.Z)
+			root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+		end
+	end)
+	dashWatches[player] = watch
+end
+
+-- The dash itself already happened on the player's client; check it stays within MaxDashStuds.
+local function useDash(player: Player, root: BasePart, def: AbilityDef)
+	watchDash(player, root, def.MaxDashStuds or def.Range + 2, def.DashWindowSeconds or 1)
+end
+
 local function onUseAbility(player: Player, slot: number, aim: Vector3)
 	local data = DataService.Get(player)
 	if not data or slot > AbilityService.SlotCount(player) then
@@ -257,6 +296,11 @@ local function onUseAbility(player: Player, slot: number, aim: Vector3)
 		readyAt[player] = perPlayer
 	end
 	if now < (perPlayer[def.Id] or 0) - LATENCY_ALLOWANCE then
+		if def.Type == "Movement" then
+			-- Still on cooldown: no dash allowed. Its client may have dashed anyway (a cheat, or a
+			-- clock that drifted); only normal walking is let through.
+			watchDash(player, root, humanoid.WalkSpeed * (def.DashWindowSeconds or 1) + 2, def.DashWindowSeconds or 1)
+		end
 		return
 	end
 	perPlayer[def.Id] = now + def.Cooldown
@@ -272,6 +316,8 @@ local function onUseAbility(player: Player, slot: number, aim: Vector3)
 		useMelee(player, character, root, def, aim)
 	elseif def.Type == "Projectile" then
 		useProjectile(player, character, root, def, aim)
+	elseif def.Type == "Movement" then
+		useDash(player, root, def)
 	end
 end
 
@@ -341,6 +387,11 @@ function AbilityService.Start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		readyAt[player] = nil
+		local watch = dashWatches[player]
+		if watch then
+			watch:Disconnect()
+			dashWatches[player] = nil
+		end
 	end)
 end
 
