@@ -15,6 +15,9 @@ local Combat = {
 		ForwardStep = 2, -- studs, hits 1–3
 		StunnedWalkSpeed = 4,
 		Hitbox = { Size = Vector3.new(5, 5, 5), Offset = 3.5, HitFrame = 0.12 },
+		-- Uploaded animation ids for hits 1–4 ("rbxassetid://..."). Empty = Studio plays the keyframes
+		-- from client/Animations/CombatKeyframes directly; the live game needs the uploaded ids.
+		AnimationIds = { "", "", "", "" },
 	},
 
 	-- Hit 4 variants. Chosen by the key held when hit 4 lands.
