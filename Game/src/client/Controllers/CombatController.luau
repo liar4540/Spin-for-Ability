@@ -13,7 +13,11 @@ local Knockback = require(Shared:WaitForChild("Knockback"))
 local HIT_FLASH_SECONDS = 0.15
 local HIT_FLASH_COLOR = Color3.fromRGB(255, 170, 60)
 
+local UserInputService = game:GetService("UserInputService")
+
 local CombatController = {}
+
+local m1Remote: RemoteEvent
 
 -- One Highlight per hit model, reused for every hit.
 local flashes: { [Model]: Highlight } = setmetatable({}, { __mode = "k" }) :: any
@@ -40,8 +44,48 @@ end
 -- Called once at startup, before any Start(). Create state, read config. Don't yield.
 function CombatController.Init() end
 
+-- M1 input. The server decides everything; this just sends the click.
+-- Space held → Uppercut finisher, S held → Ground Smash, otherwise Knockback (only matters on hit 4).
+local LOCAL_M1_INTERVAL = 0.3 -- matches Combat.M1.MinInterval so we don't spam the remote
+local lastM1 = 0
+
+local function onM1()
+	local now = os.clock()
+	if now - lastM1 < LOCAL_M1_INTERVAL then
+		return
+	end
+	local character = Players.LocalPlayer.Character
+	local state = character and character:GetAttribute("CombatState")
+	if state ~= nil and state ~= "Idle" and state ~= "Attacking" and state ~= "Airborne" then
+		return
+	end
+	lastM1 = now
+	local finisher = "None"
+	if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+		finisher = "Space"
+	elseif UserInputService:IsKeyDown(Enum.KeyCode.S) then
+		finisher = "S"
+	end
+	local camera = workspace.CurrentCamera
+	print("[M1 client] sent", finisher, "state:", state) -- DEBUG, remove later
+	m1Remote:FireServer(camera.CFrame.LookVector, finisher)
+end
+
 -- Called once after every Init(). Connect events, start loops.
 function CombatController.Start()
+	m1Remote = Remotes.Event("M1Attack")
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			print("[M1 client] click, gameProcessed =", gameProcessed) -- DEBUG, remove later
+		end
+		if gameProcessed then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			onM1()
+		end
+	end)
+
 	-- Our client owns our character's physics, so the server asks us to apply knockback.
 	Remotes.Event("Knockback").OnClientEvent:Connect(function(velocity: Vector3)
 		local character = Players.LocalPlayer.Character
