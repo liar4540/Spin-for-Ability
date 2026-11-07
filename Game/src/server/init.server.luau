@@ -27,6 +27,7 @@ local ORDER = {
 	"HitboxService",
 	"StateService",
 	"CombatService",
+	"TrainingDummyService",
 	"AbilityService",
 	"EconomyService",
 	"PotionService",

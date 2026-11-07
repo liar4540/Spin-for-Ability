@@ -12,6 +12,7 @@ type Controller = {
 local ORDER = {
 	"HUDController",
 	"CombatController",
+	"ReactionController",
 	"AbilityController",
 	"InventoryController",
 	"ShopController",

@@ -1,7 +1,7 @@
 --!strict
 -- CombatService: battlegrounds combat. The ONE damage path for M1s and abilities.
--- Vault: 12 Combat System. Build order done: 1 (states), 2 (M1 string), 3 (ApplyHit).
--- Not yet: block/guard meter, real ragdoll physics, air combo, dash, ragdoll cancel.
+-- Vault: 12 Combat System. Build order done: 1 (states), 2 (M1 string), 3 (ApplyHit), finishers (Knockback / Ground Smash / Downslam in the air).
+-- Not yet: block/guard meter, real ragdoll physics, dash, ragdoll cancel.
 --
 -- Abilities must call CombatService.ApplyHit; never TakeDamage / stun / ragdoll directly.
 
@@ -27,8 +27,10 @@ export type Hit = {
 	stun: number?, -- seconds of hitstun
 	ragdoll: number?, -- seconds of ragdoll (placeholder: state + knockback; physics ragdoll comes later)
 	launch: Vector3?, -- velocity relative to the attacker's facing (-Z = forward, +Y = up)
+	launchSeconds: number?, -- how long the launch pushes (default 0.18)
+	hang: number?, -- seconds the target hangs in the air afterwards (air combo), falling at Air.FallSpeed
 	guardBreak: boolean?, -- ignores block (block not built yet)
-	abilityId: string, -- "M1_1".."M1_4" for M1s
+	abilityId: string, -- "M1_1".."M1_4", "M1_Air1".., "M1_Downslam" for M1s
 }
 
 local CombatService = {}
@@ -40,19 +42,21 @@ local knockbackRemote: RemoteEvent
 type Chain = { index: number, lastAt: number, nextAllowedAt: number }
 local chains: { [Player]: Chain } = {}
 
-local FINISHER_BY_INPUT: { [string]: string } = { None = "Knockback", Space = "Uppercut", S = "GroundSmash" }
+local FINISHER_BY_INPUT: { [string]: string } = { None = "Knockback", Air = "Downslam", S = "GroundSmash" }
 
 local function rootOf(model: Model?): BasePart?
 	return model and model:FindFirstChild("HumanoidRootPart") :: BasePart?
 end
 
-local function push(model: Model, root: BasePart, velocity: Vector3)
+-- Moves a character where its physics is owned. seconds/hangSeconds are optional (see Knockback.Apply).
+local function push(model: Model, root: BasePart, velocity: Vector3, seconds: number?, hangSeconds: number?)
 	local victim = Players:GetPlayerFromCharacter(model)
 	if victim then
 		-- A player's character is moved by their own client (it owns the physics).
-		knockbackRemote:FireClient(victim, velocity)
+		knockbackRemote:FireClient(victim, velocity, seconds, hangSeconds)
 	else
-		Knockback.Apply(root, velocity)
+		local hover = if hangSeconds then { Seconds = hangSeconds, FallSpeed = Combat.HangFallSpeed } else nil
+		Knockback.Apply(root, velocity, seconds, hover)
 	end
 end
 
@@ -89,10 +93,20 @@ function CombatService.ApplyHit(attacker: Player, target: Model, hit: Hit): bool
 	local scale = StateService.RegisterComboHit(target)
 	humanoid:TakeDamage(hit.damage * scale)
 
+	-- Reaction animation every client plays on the target (ReactionController): "Stun" = dazed + a flinch
+	-- per hit, "Air" = launched (face up, limbs dangling), "Down" = lying on the ground.
+	local reaction: string? = nil
 	if hit.ragdoll and hit.ragdoll > 0 then
 		StateService.Set(target, "Ragdolled", hit.ragdoll)
+		reaction = "Down"
 	elseif hit.stun and hit.stun > 0 and not StateService.IsStunImmune(target) then
 		StateService.Set(target, "Stunned", hit.stun)
+		reaction = if hit.hang or (hit.launch and hit.launch.Y > 0) then "Air" else "Stun"
+	end
+	if reaction then
+		target:SetAttribute("Reaction", reaction)
+		-- Counter, so every hit fires the attribute signal even when the reaction is the same.
+		target:SetAttribute("ReactionHit", ((target:GetAttribute("ReactionHit") :: number?) or 0) + 1)
 	end
 
 	if hit.launch and hit.launch.Magnitude > 0 then
@@ -100,7 +114,9 @@ function CombatService.ApplyHit(attacker: Player, target: Model, hit: Hit): bool
 		local facing = if attackerRoot then attackerRoot.CFrame else root.CFrame
 		local flatLook = Vector3.new(facing.LookVector.X, 0, facing.LookVector.Z)
 		local basis = if flatLook.Magnitude > 0.01 then CFrame.lookAt(Vector3.zero, flatLook) else CFrame.identity
-		push(target, root, basis:VectorToWorldSpace(hit.launch))
+		push(target, root, basis:VectorToWorldSpace(hit.launch), hit.launchSeconds, hit.hang)
+	elseif hit.hang then
+		push(target, root, Vector3.zero, 0, hit.hang) -- keep it hanging where it is
 	end
 
 	if not string.find(hit.abilityId, "^M1_") then
@@ -117,27 +133,68 @@ function CombatService.CanAbilityHit(target: Model, abilityId: string): boolean
 end
 
 -- ===== M1 string =====
+-- Hits 1–3, then hit 4 = finisher: in the air (jumped) → Downslam, S held → Ground Smash,
+-- otherwise Knockback. So the Downslam is M1 ×3, jump, M1.
+
+type Box = { Size: Vector3, Offset: number, Down: number? }
+
+-- The closest living fighter in the box in front of the attacker, or nil (whiff).
+local function closestTarget(character: Model, root: BasePart, aim: Vector3, box: Box): Model?
+	local targets =
+		HitboxService.InFront(character, root, aim, box.Offset + box.Size.Z / 2, box.Size.X, 4, box.Size.Y, box.Down)
+	local best: Model? = nil
+	local bestDist = math.huge
+	for _, h in targets do
+		local m = h.Parent
+		local r = if m and m:IsA("Model") then rootOf(m) else nil
+		if m and m:IsA("Model") and r then
+			local d = (r.Position - root.Position).Magnitude
+			if d < bestDist then
+				best, bestDist = m, d
+			end
+		end
+	end
+	return best
+end
+
+-- Is the attacker really in the air? Height of the root above the ground under it (fighters ignored,
+-- so a dummy underneath doesn't count as ground) vs. its normal standing height.
+local function isAirborne(character: Model, root: BasePart): boolean
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { character }
+	params.CollisionGroup = "Fighters"
+	local result = workspace:Raycast(root.Position, Vector3.new(0, -50, 0), params)
+	local height = if result then root.Position.Y - result.Position.Y else math.huge
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local standing = (if humanoid then humanoid.HipHeight else 2) + root.Size.Y / 2
+	return height >= standing + Combat.Downslam.MinHeight
+end
+
+local function newChain(): Chain
+	return { index = 0, lastAt = 0, nextAllowedAt = 0 }
+end
 
 local function onM1(player: Player, aim: Vector3, finisherInput: string)
 	local character = player.Character
-	local root = rootOf(character)
-	print("[M1 server] got from", player.Name, "state:", character and StateService.GetState(character)) -- DEBUG
-	if not character or not root or not StateService.Can(character, "M1") then
-		print("[M1 server] blocked: can't M1 in this state") -- DEBUG
+	if not character or not rootOf(character) or not StateService.Can(character, "M1") then
 		return
 	end
-
 	local cfg = Combat.M1
 	local t = workspace:GetServerTimeNow()
 	local chain = chains[player]
 	if not chain then
-		chain = { index = 0, lastAt = 0, nextAllowedAt = 0 }
+		chain = newChain()
 		chains[player] = chain
 	end
 	if t < chain.nextAllowedAt then
 		return
 	end
-	if t - chain.lastAt > cfg.ChainResetSeconds or chain.index >= cfg.ChainLength then
+	local dropped = t - chain.lastAt > cfg.ChainResetSeconds
+	if dropped and chain.index > 0 and chain.index < cfg.ChainLength and t - chain.lastAt < cfg.RestartDelay then
+		return -- string dropped before hit 4: wait before starting again (stops M1, pause, M1 stun-locks)
+	end
+	if dropped or chain.index >= cfg.ChainLength then
 		chain.index = 0
 	end
 	chain.index += 1
@@ -146,63 +203,55 @@ local function onM1(player: Player, aim: Vector3, finisherInput: string)
 
 	local index = chain.index
 	local isFinisher = index == cfg.ChainLength
+	local finisher = if isFinisher then (FINISHER_BY_INPUT[finisherInput] or "Knockback") else nil
 	if isFinisher then
 		StateService.Set(character, "EndLag", cfg.EndLagSeconds) -- abilities + dash still allowed
 	else
 		StateService.Set(character, "Attacking", cfg.ChainResetSeconds)
 	end
+	local hitFrame = if finisher == "Downslam" then Combat.Downslam.HitFrame else cfg.Hitbox.HitFrame
 
-	task.delay(cfg.Hitbox.HitFrame, function()
+	task.delay(hitFrame, function()
 		-- Got hit during wind-up (trade lost) → swing cancelled.
 		local state = StateService.GetState(character)
 		if state ~= "Attacking" and state ~= "EndLag" then
 			return
 		end
-		local currentRoot = rootOf(character)
-		if not currentRoot then
+		local root = rootOf(character)
+		if not root then
 			return
 		end
-		local targets = HitboxService.InFront(character, currentRoot, aim, cfg.Hitbox.Offset + cfg.Hitbox.Size.Z / 2, cfg.Hitbox.Size.X, 4)
-		-- Closest valid target only.
-		local best: Model? = nil
-		local bestDist = math.huge
-		for _, h in targets do
-			local m = h.Parent
-			local r = if m and m:IsA("Model") then rootOf(m) else nil
-			if m and m:IsA("Model") and r then
-				local d = (r.Position - currentRoot.Position).Magnitude
-				if d < bestDist then
-					best, bestDist = m, d
-				end
-			end
-		end
 
-		print("[M1 server] hit", index, "targets in box:", #targets, "best:", best and best.Name) -- DEBUG
-		if not best then
+		if finisher == "Downslam" and not isAirborne(character, root) then
+			finisher = "Knockback" -- the client said "in the air", but the server sees it standing
+		end
+		local box: Box = if finisher == "Downslam" then Combat.Downslam.Hitbox else cfg.Hitbox
+		local target = closestTarget(character, root, aim, box)
+
+		if finisher == "Downslam" then
+			-- Drop back to the ground after the hammer, hit or miss.
+			local d = Combat.Downslam
+			StateService.Set(character, "EndLag", d.EndLag)
+			push(character, root, Vector3.new(0, -d.DropVelocity, 0), d.DropSeconds)
+		end
+		if not target then
 			chain.nextAllowedAt += cfg.WhiffRecovery -- whiff punish
 			return
 		end
 
-		if isFinisher then
-			local f = Combat.Finishers[FINISHER_BY_INPUT[finisherInput] or "Knockback"]
-			CombatService.ApplyHit(player, best, {
-				damage = f.Damage,
-				ragdoll = f.Ragdoll,
-				stun = if f.Ragdoll > 0 then nil else 0.8, -- Uppercut: air hitstun until the air combo exists
-				launch = f.Launch,
-				abilityId = "M1_4",
-			})
-		else
-			local landed = CombatService.ApplyHit(player, best, {
-				damage = cfg.Damage[index],
-				stun = cfg.Hitstun,
-				abilityId = `M1_{index}`,
-			})
-			if landed and character.Parent then
-				-- Small step forward so the string doesn't drift out of range.
-				push(character, currentRoot, currentRoot.CFrame.LookVector * (cfg.ForwardStep / 0.18))
-			end
+		if not finisher then
+			-- The forward step is done by the attacker's own client at the swing (smoother than a server push).
+			CombatService.ApplyHit(player, target, { damage = cfg.Damage[index], stun = cfg.Hitstun, abilityId = `M1_{index}` })
+			return
 		end
+		local f = Combat.Finishers[finisher]
+		CombatService.ApplyHit(player, target, {
+			damage = f.Damage,
+			ragdoll = f.Ragdoll,
+			stun = if f.Ragdoll > 0 then nil else 0.8,
+			launch = f.Launch,
+			abilityId = if finisher == "Downslam" then "M1_Downslam" else "M1_4",
+		})
 	end)
 end
 
@@ -250,7 +299,7 @@ function CombatService.Start()
 	end
 	CollectionService:GetInstanceAddedSignal("TrainingDummy"):Connect(setUpDummy)
 
-	local FINISHER_INPUTS = { None = true, Space = true, S = true }
+	local FINISHER_INPUTS = { None = true, Air = true, S = true }
 	RemoteGuard.Event("M1Attack", { PerSecond = 5, Burst = 5 }, function(aim, finisherInput)
 		return typeof(aim) == "Vector3"
 			and RemoteGuard.IsFiniteNumber(aim.X)
