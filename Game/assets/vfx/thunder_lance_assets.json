@@ -1,0 +1,82 @@
+{
+ "thunder_lance_throw": {
+  "assetId": "71580696171096",
+  "assetType": "Animation",
+  "sha256": "dc2751cf22b270c7fa2670f35cf54922bdacaccb47d4ae5872bc35c48b119615",
+  "file": "assets/thunder_lance_throw.rbxmx",
+  "creatorUserId": 202024761
+ },
+ "star_flash": {
+  "assetId": "102941673848579",
+  "assetType": "Image",
+  "sha256": "acf50d00b80d4b6db949c92ae73e1aa28d249947bc1b9138b692e01d3701f8b2",
+  "file": "assets/vfx/textures/star_flash.png",
+  "creatorUserId": 202024761
+ },
+ "spark": {
+  "assetId": "93020102460287",
+  "assetType": "Image",
+  "sha256": "28f7e63ded5924c7826c72447a1d5269992e8381ca03858ef6f6801d24e1754d",
+  "file": "assets/vfx/textures/spark.png",
+  "creatorUserId": 202024761
+ },
+ "glow_line": {
+  "assetId": "77325461611512",
+  "assetType": "Image",
+  "sha256": "6dadf2165ab21b44aa7dc9bff927b84ca8ab7d2436fdb2581f42b6345d6319b9",
+  "file": "assets/vfx/textures/glow_line.png",
+  "creatorUserId": 202024761
+ },
+ "streak": {
+  "assetId": "118515517236816",
+  "assetType": "Image",
+  "sha256": "34b550f800fc46045f4d26727bac4e773d4cddb404b36908ebbe99c2d0e73287",
+  "file": "assets/vfx/textures/streak.png",
+  "creatorUserId": 202024761
+ },
+ "scorch": {
+  "assetId": "74859395701291",
+  "assetType": "Image",
+  "sha256": "bf91005106f17c69034f1017f4a9bcee34bac07089cdda7955311cc267d0ff7d",
+  "file": "assets/vfx/textures/scorch.png",
+  "creatorUserId": 202024761
+ },
+ "spear_core.fbx": {
+  "assetId": "101342158802502",
+  "assetType": "Model",
+  "sha256": "9dfb07c5eb44a09c9b296ff6b56ad675c0186afc1620eae344efc1139c6fa3d7",
+  "file": "assets/spear_core.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "74205448858788"
+ },
+ "ribbon_helix.fbx": {
+  "assetId": "99150910873914",
+  "assetType": "Model",
+  "sha256": "7d8d1d791d70173f2534553d503986371a1954fae818c587f96fd5fd5e11d265",
+  "file": "assets/ribbon_helix.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "137288918407462"
+ },
+ "shock_ring.fbx": {
+  "assetId": "118298985615578",
+  "assetType": "Model",
+  "sha256": "3aef22d21270085f33a415df3450decf2b611686b97f5b8d1badcdfc40878427",
+  "file": "assets/shock_ring.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "108495321187592"
+ },
+ "crater": {
+  "assetId": "95185080474814",
+  "assetType": "Image",
+  "sha256": "3ef160040c9f6a6d0f1077ec79af3f3d09c0af8a9e6edd5d6cd4cad6f535e5f4",
+  "file": "assets/vfx/textures/crater.png",
+  "creatorUserId": 202024761
+ },
+ "crater_glow": {
+  "assetId": "110544073335580",
+  "assetType": "Image",
+  "sha256": "cc0d45ed3cb624891533a3be959fe9dfd5ef2889115d4165bad5ccd6dcf1c709",
+  "file": "assets/vfx/textures/crater_glow.png",
+  "creatorUserId": 202024761
+ }
+}

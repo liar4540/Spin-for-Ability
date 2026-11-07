@@ -1,5 +1,8 @@
 {
   "enabledPlugins": {
     "lihfolk@lihfolk": true
+  },
+  "permissions": {
+    "additionalDirectories": ["C:\\Roblox\\Anime-Stand\\src\\LIH.FOLK.VAULT.V2.FULL"]
   }
 }

@@ -4,7 +4,9 @@
 --
 -- The client plays its own move instantly and asks the server (UseAbility); the server checks
 -- the cooldown, finds targets and deals damage, then tells everyone else (AbilityUsed).
--- Projectiles: the server flies them and tells every client where they hit (AbilityHit).
+-- Projectiles: the server flies them and tells every client where they hit (AbilityHit). Server-clock
+-- ones (Thunder Lance) are also announced to the other clients when they leave the hand (AbilityLaunch).
+-- Melee with on-hit VFX (Frost Jab): the server tells every client who was hit (AbilityImpact).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -27,8 +29,15 @@ local AbilityEffects = Client:WaitForChild("Abilities")
 type AbilityDef = Types.AbilityDef
 type Effect = {
 	Play: (character: Model, aim: Vector3, isLocal: boolean) -> (),
-	-- Projectiles: the server says where the attacker's projectile hit (AbilityHit).
-	Hit: ((character: Model, position: Vector3, normal: Vector3) -> ())?,
+	-- Projectiles: the server says where the attacker's projectile hit (AbilityHit); server-clock ones
+	-- (Thunder Lance) also get the target, the server time of the hit and the seed.
+	Hit: ((character: Model, position: Vector3, normal: Vector3, target: Model?, serverTime: number?, seed: number?) -> ())?,
+	-- Server-clock projectiles: another player's left their hand (AbilityLaunch).
+	Launch: ((character: Model, origin: Vector3, direction: Vector3, serverTime: number, seed: number) -> ())?,
+	-- Melee: the server says who the attacker's hit landed on, and when (AbilityImpact).
+	Impact: ((character: Model, hits: { { Target: Model, Position: Vector3 } }, serverTime: number) -> ())?,
+	-- Sky strike after a projectile's character hit (AbilityStrike): where it lands, when, the seed.
+	Strike: ((character: Model, target: Model?, groundPos: Vector3, serverTime: number, seed: number) -> ())?,
 }
 
 local KEYS: { [Enum.KeyCode]: number } = {
@@ -45,6 +54,8 @@ local EFFECTS: { [string]: Effect } = {
 	EmberFist = require(AbilityEffects:WaitForChild("EmberFist")) :: any,
 	PebbleToss = require(AbilityEffects:WaitForChild("PebbleTossVFX")) :: any,
 	GaleStep = GaleStepVFX :: any,
+	FrostJab = require(AbilityEffects:WaitForChild("FrostJabVFX")) :: any,
+	ThunderLance = require(AbilityEffects:WaitForChild("ThunderLanceVFX")) :: any,
 }
 
 -- After using any ability, others can't start until this ends (so animations don't overlap).
@@ -303,10 +314,38 @@ function AbilityController.Start()
 	end)
 
 	-- Projectile hits (everyone, the attacker too): the server decided it, every client shows it.
-	Remotes.Event("AbilityHit").OnClientEvent:Connect(function(character: Model, abilityId: string, position: Vector3, normal: Vector3)
+	Remotes.Event("AbilityHit").OnClientEvent:Connect(function(character: Model, abilityId: string, position: Vector3, normal: Vector3,
+		target: Model?, serverTime: number?, seed: number?)
 		local effect = EFFECTS[abilityId]
 		if effect and effect.Hit and character then
-			effect.Hit(character, position, normal)
+			effect.Hit(character, position, normal, target, serverTime, seed)
+		end
+	end)
+
+	-- Server-clock projectiles (everyone but the thrower, who launched its own on the Release marker).
+	Remotes.Event("AbilityLaunch").OnClientEvent:Connect(function(character: Model, abilityId: string, origin: Vector3,
+		direction: Vector3, serverTime: number, seed: number)
+		local effect = EFFECTS[abilityId]
+		if effect and effect.Launch and character and character.Parent then
+			effect.Launch(character, origin, direction, serverTime, seed)
+		end
+	end)
+
+	-- Sky strikes (everyone, the attacker too): the server picked the spot right after the hit; the
+	-- target may already be gone (dead, reset, left), so it plays at the ground position it sent.
+	Remotes.Event("AbilityStrike").OnClientEvent:Connect(function(character: Model, abilityId: string, target: Model?,
+		groundPos: Vector3, serverTime: number, seed: number)
+		local effect = EFFECTS[abilityId]
+		if effect and effect.Strike and character then
+			effect.Strike(character, target, groundPos, serverTime, seed)
+		end
+	end)
+
+	-- Melee hits (everyone, the attacker too): the server decided who was hit, every client shows it.
+	Remotes.Event("AbilityImpact").OnClientEvent:Connect(function(character: Model, abilityId: string, hits: { any }, serverTime: number)
+		local effect = EFFECTS[abilityId]
+		if effect and effect.Impact and character and typeof(hits) == "table" then
+			effect.Impact(character, hits, serverTime)
 		end
 	end)
 end

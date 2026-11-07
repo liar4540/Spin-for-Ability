@@ -37,11 +37,21 @@ export type AbilityDef = {
 	-- Melee timing/feel. Optional until every ability has its own.
 	WindupSeconds: number?, -- from key press to the hit (matches the animation)
 	HitboxWidth: number?, -- studs, side to side
+	HitboxHeight: number?, -- studs, up and down; set = an exact box (HitboxService.InBox) of Width x Height x Range
 	Knockback: number?, -- studs/second pushed away from the attacker
+	SlowMultiplier: number?, -- a hit multiplies the target's WalkSpeed by this (StateService.ApplySlow)...
+	SlowSeconds: number?, -- ...for this long; a new hit refreshes the timer, never stacks
+	MinRequestSeconds: number?, -- the server ignores another UseAbility for this ability within this time
+	DurationSeconds: number?, -- how long the move lasts (animation + recovery)
 	-- Projectile flight. WindupSeconds = when it leaves the hand; Range = how far it flies.
 	ProjectileSpeed: number?, -- studs/second
 	ProjectileRadius: number?, -- studs, the projectile itself: walls and the ground stop it
 	HitboxRadius: number?, -- studs, the sphere swept along the path that finds characters (shared/Projectile)
+	ThrowOffset: Vector3?, -- studs right, up, forward from the HumanoidRootPart where it leaves the hand
+	ProjectileLead: number?, -- studs the projectile's front is ahead of the hand (a spear's tip)
+	ServerClock: boolean?, -- flown on the server clock: AbilityLaunch tells the other clients when and where it left the hand
+	SkyStrike: boolean?, -- a character hit also calls a lightning strike down onto the target (AbilityStrike)
+	StrikeDamage: number?, -- damage of that strike, dealt StrikeDelay after the hit (0 = visual only)
 	-- Movement (dash). Range = studs dashed; WindupSeconds = when the dash starts.
 	MaxDashStuds: number?, -- studs; the server pulls back any dash that moves further
 	DashWindowSeconds: number?, -- seconds after the key press the server watches the dash

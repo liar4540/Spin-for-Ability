@@ -12,6 +12,11 @@ local Knockback = require(Shared:WaitForChild("Knockback"))
 
 local HIT_FLASH_SECONDS = 0.15
 local HIT_FLASH_COLOR = Color3.fromRGB(255, 170, 60)
+-- Abilities whose own on-hit VFX already marks the target (and whose palette has no orange).
+local OWN_HIT_FLASH: { [string]: boolean } = {
+	FrostJab = true, -- frost coat (FrostJabVFX)
+	ThunderLance = true, -- electric arcs on the target (ThunderLanceVFX)
+}
 
 local CombatController = {}
 
@@ -51,8 +56,8 @@ function CombatController.Start()
 		end
 	end)
 
-	Remotes.Event("HitEffect").OnClientEvent:Connect(function(model: Model, _abilityId: string, _position: Vector3)
-		if model and model.Parent then
+	Remotes.Event("HitEffect").OnClientEvent:Connect(function(model: Model, abilityId: string, _position: Vector3)
+		if model and model.Parent and not OWN_HIT_FLASH[abilityId] then
 			flash(model)
 		end
 	end)

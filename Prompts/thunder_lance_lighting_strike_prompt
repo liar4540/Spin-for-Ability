@@ -1,0 +1,42 @@
+# ADD-ON STAGE 7B: Lightning Strike on hit (Thunder Lance)
+
+Thunder Lance is finished up to Stage 7. Do NOT change any existing layer, timing or gameplay unless this add-on says so. Do NOT run section 9 ("Finally") yet; I'll tell you when.
+
+## What I want
+When the spear HITS a player, a fierce, destructive lightning bolt strikes down from the sky onto that player a moment later. It should feel like overwhelming power: a big flash, ground damage and a heavy shake. It only happens on a character hit; walls, the floor and max range do NOT trigger it.
+
+## Gameplay
+- ⚖ STRIKE_DAMAGE = 0 for now (visual only). Don't change it unless I say so.
+- The server triggers it. It sends Strike(targetId, groundPos, serverTime) to ALL clients right after the spear's Impact event. groundPos = a raycast straight down from the target's HumanoidRootPart (up to 20 studs); if nothing is found, use the target's position.
+- If the target dies, leaves or resets in the meantime, still play the strike at the last known position.
+
+## Timeline (seconds after spear impact; all × TIME_SCALE)
+| Time | Layer | Role | How to build it |
+|---|---|---|---|
+| 0.00–0.15 | Charge | SECONDARY | 3–4 thin flickering bolts crawl in a 6-stud circle about 40 studs above the target, plus a dim gold glow (PointLight r30, brightness 1). Small crackles on the target's head. It builds tension. |
+| 0.15 | STRIKE: main bolt | MAIN | Use the existing LightningBolt module, from 45 studs up straight down to groundPos. 18 segments, maxOffset 2.5, 4–6 branches (6–15 studs long, angled 25–50° downward). Draw THREE stacked Beams for every segment: outer glow (width 3.0, #FFB000, transparency 0.6), middle (width 1.4, #FFE14D), core (width 0.5, #FFFDF0). |
+| 0.15–0.45 | Flicker | MAIN | The bolt strikes 3 times: ON 0.06 s, OFF 0.03 s, ON 0.05 s, OFF 0.04 s, ON 0.08 s, then fades over 0.1 s. Re-make the bolt shape on every ON, so each flash looks different. |
+| 0.15 | Flash | FLASH | PointLight at groundPos: range 60, brightness 8, fading to 0 in 0.25 s. Star flash 16 studs at the target. A screen flash for players within 80 studs (see the rules below). |
+| 0.15 | Shockwave | SECONDARY | Flat ring mesh on the ground, 2 → 16 studs over 0.3 s, Quint Out, fading. Plus a dust ring: ParticleEmitter :Emit(30) along the ground, moving outward at 25–35 studs/s, lifetime 0.6 s, dust colour taken from the floor (raycast result Material/Color, blended 50% with #8A7F70). |
+| 0.15 | Debris | MAIN | 10–14 rock chunks (reuse PebbleToss chip meshes, scaled 1–2.5×, coloured like the floor) burst up and out at 30–55 studs/s with random spin and gravity. Client-only, CanCollide false. They fade at 1.2 s. |
+| 0.15 | Camera shake | — | Strength depends on distance: the target gets the strongest (CONFIG.SHAKE_MAX), it fades to 0 at 80 studs, and lasts 0.35 s. |
+| 0.20–1.50 | Smoke column | RESIDUAL | 6–8 large soft smoke particles rising from groundPos at 4–8 studs/s, dark grey #3A3632 at 0.4 transparency, fading. |
+| 0.20–1.00 | Ground arcs | RESIDUAL | 4–6 small bolts jumping along the ground near the crater, re-made every 3 frames, shrinking over time. |
+| 0.15–3.15 | Crater | RESIDUAL | Replaces the spear's scorch mark for this hit: a crater decal 10 studs across (dark centre, radial cracks) with a SEPARATE glowing crack decal (#FFB000) on top that fades over 1.5 s. The crater itself fades over the last 1 s. |
+| 0.15 | Sound hook | — | Add a CONFIG.STRIKE_SOUND_ID slot (empty for now) and play it at groundPos if set. Tell me which kind of sound to find. |
+
+## Rules
+- Screen flash: create a ColorCorrectionEffect LOCALLY on each client (never globally): Brightness +0.35 and Contrast +0.25 for 0.06 s, then back to 0 over 0.2 s. Add CONFIG.SCREEN_FLASH_ENABLED (default true) so I can turn it off. Don't touch the existing Lighting settings.
+- Reuse the LightningBolt module and its pool. Extend it with "layers" (outer/middle/core widths) and "branches" options, without breaking the existing trail and spark bolts.
+- New Blender assets only if needed: crater.png and crater_glow.png (512, white/grey, transparent background, same render rules as before).
+- Budget for the strike alone: at most 120 particles, 90 Beams (3 layers × segments + branches), and 30 other instances. Report the real counts at the peak.
+- Everything is cleaned up by 3.5 s. Repeat the Workspace descendant count test.
+
+## Proof to show me
+1. A Studio contact sheet at TIME_SCALE 0.25: charge, the first strike, flicker OFF, the second strike, the shockwave at its peak, debris in the air, smoke at 1 s, and the crater at 2.5 s.
+2. Evidence that the strike happens ONLY on a character hit: test a wall hit and a max-range throw (no strike).
+3. A target that dies on the spear hit still gets the strike at the right spot.
+4. Peak instance and particle counts, and the cleanup count.
+5. The cross-check table, and how this changed CONFIG (new keys only).
+
+Save the new CONFIG keys into presets/lightning_projectile.lua, and add notes to docs/vfx_notes.md and the Lihfolk Vault.

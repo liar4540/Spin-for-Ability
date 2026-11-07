@@ -1,0 +1,64 @@
+Thunder Lance - Stage 7 gameplay tests (Studio Play mode, 2026-11-08). Real server path unless noted.
+Server shots use the Studio-only hook ServerStorage.Dev.AbilityTestHook:
+Invoke("Projectile", player, "ThunderLance", origin, direction) = the real useClockProjectile (closed-form
+flight on the server clock, Projectile.Step sweeps: 2.5-stud hitbox for characters, 0.175 body for the
+world, damage, AbilityLaunch / AbilityHit), from an exact origin, without the wind-up.
+Target: Workspace.Dummies."Training Dummy" at (-6, 3.19, -14), 200 HP.
+
+1. HIT at 2 studs to the side / 2. MISS at 3 studs
+Flight along -Z at chest height (y 3.44), starting 30 studs in front of the dummy. The gap is measured with
+physics, not boxes: the biggest sphere that sweeps the same line without touching the dummy (bisection
+with workspace:Spherecast, Include = the dummy), so it is the real clearance to the dummy's surface.
+gap 2.000 studs (line x=-1.990): Hit=true  Target=Training Dummy  stop (-3.99, 3.44, -14.32)  travelled 30.38  hp 200.00 -> 182.00
+gap 3.000 studs (line x=-0.990): Hit=false Target=nil             stop (-0.99, 3.44, -104.00) travelled 120.00 hp 200.00 -> 200.00
+-> 18 damage exactly (base 9.877 x Rare 1.8225); 2.5-stud hitbox: 0.5 overlap hits, 0.5 clearance misses.
+
+3. WALL: stops at the wall, impact on the wall
+Test wall: Part 12 x 10 x 1 at (20, 5, -30), kept in ServerStorage.Dev, parented to Workspace only for the
+shot and put back after it. Shot from (20, 4, 0) along -Z; wall front face z = -29.5.
+server: Hit=true Target=nil stop (20.000, 4.000, -29.500) travelled 29.50
+client: ThunderLanceHit_<player> played 0.22 s later, Sparks part at (20.000, 4.000, -29.500)
+Image: thunder_lance_stage7_wall_range.png (top): flash, shock ring flat on the wall face, bolts.
+
+4. MAX RANGE: fades out, no impact
+server (hook, open space along -X): Hit=false stop (-164.00, 4.51, 30.00) travelled 120.00
+client (real hotbar cast, key 4, same spot and direction; the thrower's own spear):
+  spear in hand x=-39.33 -> stops at x=-162.20 (120 studs past the launch point, 4 ahead of the grip)
+  SpearCore Transparency 0.68 at 1.000 s, 0.99 at 1.069 s, 1.00 at 1.133 s; cast folder removed 1.274 s
+  no new ThunderLanceHit folder (no AbilityHit)
+Image: thunder_lance_stage7_wall_range.png (bottom).
+
+5. TWO CLIENTS see the same impact position
+PENDING: needs a Studio local server with 2 players (Test > Clients and Servers), which scripts can't start.
+
+6. CLEANUP (client, 20 real hotbar casts in a row, key 4, 6.4 s apart, each hitting the dummy)
+Workspace descendants counted on the frame before each cast and 3 s after it; bolt pool = Beams on
+workspace.ClientVFX.LightningBolts. Budget per cast: 150 particles, 30 Beams, 20 other objects.
+cast  1: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 26, bolt pool 30
+cast  2: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 30, bolt pool 30
+cast  3: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 30, bolt pool 30
+cast  4: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 30, bolt pool 30
+cast  5: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 30, bolt pool 30
+cast  6: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 27, bolt pool 30
+cast  7: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 27, bolt pool 30
+cast  8: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 30, bolt pool 30
+cast  9: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 26, bolt pool 30
+cast 10: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 26, bolt pool 30
+cast 11: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 27, bolt pool 30
+cast 12: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 27, bolt pool 30
+cast 13: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 26, bolt pool 30
+cast 14: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 27, bolt pool 30
+cast 15: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 30, bolt pool 30
+cast 16: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 26, bolt pool 30
+cast 17: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 26, bolt pool 30
+cast 18: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 27, bolt pool 30
+cast 19: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 27, bolt pool 30
+cast 20: before 984, +3 s 984 (diff +0), peak +29, VFX objects peak 12, Beams peak 30, bolt pool 30
+-> difference 0 on every cast; the pool stays at 30 Beams (warm from earlier tests in the same session).
+
+7. 20 RAPID CASTS rejected by the cooldown, no errors
+The client fired the real UseAbility remote 20 times, 0.1 s apart (2.18 s), skipping the client's own
+cooldown check, aimed at the dummy. The server counted what arrived and the dummy's damage.
+server received 20 UseAbility; damage events: 1 (-18.00); thrower's client got 1 AbilityHit
+Output: no errors or warnings from the game's scripts (only the place's existing
+"rbxassetid://203785492 ... Asset type does not match" line, which isn't in Game/ and predates this).

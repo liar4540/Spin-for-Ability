@@ -6,6 +6,12 @@
 --                     in front of the nearest training dummy and throws at it, over and over
 --   /vfxtest gale     loop Gale Step at 0.25x speed: a copy of your character dashes 30 studs
 --                     across the nearest open area (next to you), then starts again where it began
+--   /vfxtest frost    loop Frost Jab at 0.25x speed: a copy of your character punches the nearest
+--                     training dummy from 4.4 studs; the on-hit VFX play on the dummy locally (the
+--                     real hit, damage and slow are the server's: they only happen with the hotbar)
+--   /vfxtest lance    loop Thunder Lance at 0.25x speed: a copy of your character throws at the nearest
+--                     training dummy from 40 studs; this client sweeps the flight and plays the impact
+--                     (the real hit and damage are the server's: they only happen with the hotbar)
 --   /vfxtest off      stop (typing the same test again also stops it)
 
 local CollectionService = game:GetService("CollectionService")
@@ -17,17 +23,20 @@ local Client = script.Parent.Parent
 local Abilities = Client:WaitForChild("Abilities")
 local PebbleTossVFX = require(Abilities:WaitForChild("PebbleTossVFX"))
 local GaleStepVFX = require(Abilities:WaitForChild("GaleStepVFX"))
+local FrostJabVFX = require(Abilities:WaitForChild("FrostJabVFX"))
+local ThunderLanceVFX = require(Abilities:WaitForChild("ThunderLanceVFX"))
 
 local TIME_SCALE = 0.25
-local DISTANCE = 16 -- studs between the thrower and the dummy
+local DISTANCE = 16 -- studs between the thrower and the dummy (default)
 local DUMMY_TAG = "TrainingDummy"
 local OPEN_STUDS = 36 -- an open area: this far clear in the dash direction
 local OPEN_SIDE = 6 -- the dashing copy starts this far to your side
 
 type Test = {
-	Run: (rig: Model, aim: Vector3) -> (),
+	Run: (rig: Model, aim: Vector3, dummy: Model?) -> (),
 	LoopSeconds: number, -- one go at normal speed; divided by TIME_SCALE
 	OpenArea: boolean?, -- true: needs room to move, not a dummy
+	Distance: number?, -- studs from the dummy (default DISTANCE)
 }
 
 local TESTS: { [string]: Test } = {
@@ -43,6 +52,20 @@ local TESTS: { [string]: Test } = {
 		end,
 		LoopSeconds = 1.6, -- the 1.2 s skill + a short pause
 		OpenArea = true,
+	},
+	frost = {
+		Run = function(rig, aim, dummy)
+			FrostJabVFX.Play(rig, aim, false, { TimeScale = TIME_SCALE, PlayAnimation = true, LocalTarget = dummy })
+		end,
+		LoopSeconds = 3, -- punch + the 1.5 s frost + its break, then a short pause
+		Distance = 4.4, -- inside the 5 x 5 x 6 (+1.5) box, where the fist reaches the dummy's chest
+	},
+	lance = {
+		Run = function(rig, aim)
+			ThunderLanceVFX.Play(rig, aim, false, { TimeScale = TIME_SCALE, PlayAnimation = true, LocalHits = true })
+		end,
+		LoopSeconds = 4.5, -- 1 s throw + 0.25 s flight + the sky strike (3.4 s after the hit)
+		Distance = 40, -- prompt: a Training Dummy 40 studs away
 	},
 }
 
@@ -107,16 +130,16 @@ local function stand(rig: Model, spot: Vector3, toward: Vector3, ignore: { Insta
 	return true
 end
 
--- A copy of our character, standing still DISTANCE studs in front of the dummy.
-local function rigAtDummy(character: Model, dummy: Model): Model?
+-- A copy of our character, standing still `distance` studs in front of the dummy.
+local function rigAtDummy(character: Model, dummy: Model, distance: number): Model?
 	local rig = copyCharacter(character)
 	if not rig then
 		return nil
 	end
 	local target = dummy:GetPivot()
 	local front = Vector3.new(target.LookVector.X, 0, target.LookVector.Z).Unit
-	if not stand(rig, target.Position + front * DISTANCE, target.Position, { character, dummy, rig }) then
-		rig:PivotTo(CFrame.lookAt(target.Position + front * DISTANCE, target.Position))
+	if not stand(rig, target.Position + front * distance, target.Position, { character, dummy, rig }) then
+		rig:PivotTo(CFrame.lookAt(target.Position + front * distance, target.Position))
 	end
 	rig.Parent = workspace
 	return rig
@@ -170,6 +193,7 @@ local function start(name: string)
 	stop()
 	local rig: Model?
 	local aimAt: () -> Vector3
+	local target: Model? = nil
 	if test.OpenArea then
 		rig = rigInOpenArea(character)
 		local home = rig and rig:GetPivot()
@@ -185,7 +209,8 @@ local function start(name: string)
 			warn(`[VFXTest] no "{DUMMY_TAG}" dummy in the world`)
 			return
 		end
-		rig = rigAtDummy(character, dummy)
+		target = dummy
+		rig = rigAtDummy(character, dummy, test.Distance or DISTANCE)
 		aimAt = function()
 			local aim = dummy:GetPivot().Position - (rig :: Model):GetPivot().Position
 			return Vector3.new(aim.X, 0, aim.Z).Unit
@@ -199,7 +224,7 @@ local function start(name: string)
 	running = this
 	task.spawn(function()
 		while running == this and copy.Parent do
-			test.Run(copy, aimAt())
+			test.Run(copy, aimAt(), target)
 			task.wait(test.LoopSeconds / TIME_SCALE)
 		end
 	end)

@@ -16,3 +16,6 @@ A Roblox game: spin for free to roll anime-style abilities (9 rarities, Common t
 5. **VFX meshes:** rebuilt from `Game/assets/vfx/_src/build_vfx.py` with Blender 5.2 (`blender -b --factory-startup --python build_vfx.py`).
 
 Never commit Obsidian plugin settings or any API keys; the `.gitignore` files already block the usual ones.
+
+/add-dir C:/Roblox/Anime-Stand/src/LIH.FOLK.VAULT.V2.FULL
+"Continue Thunder Lance from Stage 7. Stage 6 is ok."

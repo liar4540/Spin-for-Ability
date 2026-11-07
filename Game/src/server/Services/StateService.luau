@@ -6,6 +6,8 @@
 --  * Timers are timestamps (state.until = now + seconds), never wait(). A new hit overwrites them.
 --  * One Heartbeat loop expires timers for everyone, instead of one thread per hit.
 --  * The state is mirrored to the character as the attribute "CombatState" so clients and UI can read it.
+--  * Slows (ApplySlow) are a status next to the state: WalkSpeed is worked out in ONE place
+--    (applyWalkSpeed) from the state and the slow, mirrored as SlowMultiplier / SlowEndsAt.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -35,6 +37,8 @@ export type Fighter = {
 	stateEnd: number, -- 0 = no timer
 	stunImmuneUntil: number,
 	iFramesUntil: number,
+	slowMultiplier: number, -- WalkSpeed multiplier while slowed (1 = not slowed)
+	slowEndsAt: number, -- 0 = not slowed
 	combo: { hits: number, lastHitAt: number, usedAbilities: { [string]: boolean } }, -- combo this fighter is RECEIVING
 	label: BillboardGui?,
 }
@@ -56,7 +60,20 @@ local function applyWalkSpeed(f: Fighter)
 	elseif f.state == "Ragdolled" or f.state == "GuardBroken" then
 		speed = 0
 	end
+	if f.slowEndsAt > 0 then
+		speed *= f.slowMultiplier
+	end
 	f.humanoid.WalkSpeed = speed
+end
+
+-- Slow status, mirrored to the model as attributes SlowMultiplier / SlowEndsAt (server time) so
+-- clients and UI can read it. Cleared here only: when it runs out, the fighter dies, or is removed.
+local function setSlow(f: Fighter, multiplier: number, endsAt: number)
+	f.slowMultiplier = multiplier
+	f.slowEndsAt = endsAt
+	f.model:SetAttribute("SlowMultiplier", if endsAt > 0 then multiplier else nil)
+	f.model:SetAttribute("SlowEndsAt", if endsAt > 0 then endsAt else nil)
+	applyWalkSpeed(f)
 end
 
 local function updateLabel(f: Fighter)
@@ -181,6 +198,19 @@ function StateService.MarkAbilityUsed(model: Model, abilityId: string)
 	end
 end
 
+-- Slow a fighter: WalkSpeed x multiplier for `seconds`. Never stacks: a new slow refreshes the timer
+-- (and keeps the stronger multiplier if one is already running). Returns false if model isn't a fighter.
+function StateService.ApplySlow(model: Model, multiplier: number, seconds: number): boolean
+	local f = fighters[model]
+	if not f or f.humanoid.Health <= 0 then
+		return false
+	end
+	local t = now()
+	local active = f.slowEndsAt > t
+	setSlow(f, if active then math.min(f.slowMultiplier, multiplier) else multiplier, math.max(if active then f.slowEndsAt else 0, t + seconds))
+	return true
+end
+
 local function register(model: Model)
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	if not humanoid or fighters[model] then
@@ -193,17 +223,26 @@ local function register(model: Model)
 		stateEnd = 0,
 		stunImmuneUntil = 0,
 		iFramesUntil = 0,
+		slowMultiplier = 1,
+		slowEndsAt = 0,
 		combo = { hits = 0, lastHitAt = 0, usedAbilities = {} },
 		label = makeLabel(model),
 	}
 	fighters[model] = f
 	model:SetAttribute("CombatState", "Idle")
+	-- A slow never outlives its fighter: dying or being removed (reset, leaving) clears it.
 	model.AncestryChanged:Connect(function(_, parent)
 		if not parent then
+			if f.slowEndsAt > 0 then
+				setSlow(f, 1, 0)
+			end
 			fighters[model] = nil
 		end
 	end)
 	humanoid.Died:Connect(function()
+		if f.slowEndsAt > 0 then
+			setSlow(f, 1, 0)
+		end
 		fighters[model] = nil
 	end)
 end
@@ -249,6 +288,9 @@ function StateService.Start()
 		for _, f in fighters do
 			if f.stateEnd > 0 and t >= f.stateEnd then
 				onTimerEnd(f)
+			end
+			if f.slowEndsAt > 0 and t >= f.slowEndsAt then
+				setSlow(f, 1, 0)
 			end
 		end
 	end)
