@@ -107,9 +107,20 @@ local function inAir(character: Model): boolean
 	return humanoid ~= nil and humanoid.FloorMaterial == Enum.Material.Air
 end
 
+local buffered = false
+
 local function onM1()
 	local now = os.clock()
-	if now - lastM1 < LOCAL_M1_INTERVAL then
+	local wait = LOCAL_M1_INTERVAL - (now - lastM1)
+	if wait > 0 then
+		-- Clicked a little early: throw it the moment it's allowed instead of ignoring it.
+		if wait <= Combat.M1.InputBuffer and not buffered then
+			buffered = true
+			task.delay(wait, function()
+				buffered = false
+				onM1()
+			end)
+		end
 		return
 	end
 	local character = Players.LocalPlayer.Character
@@ -123,7 +134,9 @@ local function onM1()
 	end
 
 	local cfg = Combat.M1
-	local dropped = now - lastM1 > cfg.ChainResetSeconds
+	-- Hit 4 gets a longer window (time to jump for the Downslam).
+	local window = if chainIndex == cfg.ChainLength - 1 then cfg.FinisherWindow else cfg.ChainResetSeconds
+	local dropped = now - lastM1 > window
 	if dropped and chainIndex > 0 and chainIndex < cfg.ChainLength and now - lastM1 < cfg.RestartDelay then
 		return -- same rule as the server: a dropped string can't restart right away
 	end
@@ -139,7 +152,10 @@ local function onM1()
 		if root then
 			Knockback.Step(root, root.CFrame.LookVector, cfg.ForwardStep, cfg.ForwardStepSeconds)
 		end
-	elseif inAir(character) then
+	elseif inAir(character) and root and (heightAboveStanding(character, root) >= Combat.Downslam.MinHeight
+		or root.AssemblyLinearVelocity.Y > 0) then
+		-- High enough, or still rising from the jump (it will be by the hit). Landing and too low
+		-- → normal Knockback, the same thing the server will decide.
 		finisher = "Air"
 		playMove(character, "Downslam")
 		local d = Combat.Downslam

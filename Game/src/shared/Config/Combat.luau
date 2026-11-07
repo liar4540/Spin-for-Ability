@@ -8,8 +8,18 @@ local Combat = {
 		ChainLength = 4,
 		Damage = { 3, 3, 3, 5 }, -- hit 4 is the finisher
 		Hitstun = 0.45, -- must stay longer than MinInterval, or the target can hit back mid-string
-		MinInterval = 0.3, -- server rate limit (anti autoclicker)
+		MinInterval = 0.3, -- time between swings (anti autoclicker)
 		ChainResetSeconds = 0.55, -- no M1 for this long → back to hit 1
+		-- After hit 3 you get longer for hit 4, so there's time to jump for the Downslam.
+		-- (The target's hitstun still ends after 0.45 s, so waiting gives them a chance to escape.)
+		FinisherWindow = 0.9,
+		-- Network jitter: clicks sent exactly MinInterval apart can arrive a bit closer together, and
+		-- late ones a bit later. The server allows this much slack on both, so it never disagrees with
+		-- the client about which hit of the string you're on.
+		ServerTolerance = 0.1,
+		-- A click this early (before MinInterval is up) is kept and thrown as soon as it's allowed,
+		-- instead of being ignored.
+		InputBuffer = 0.2,
 		-- After a string is dropped before hit 4 (M1, pause, M1…), hit 1 can only start again this long
 		-- after the last swing. Hitstun is 0.45 s, so the target always gets ≥ 0.55 s to act: no stun-lock.
 		RestartDelay = 1.0,
@@ -63,7 +73,7 @@ local Combat = {
 		-- attacker. Covers from (Down + Height/2) below the attacker's root to (Height/2 - Down) above.
 		Hitbox = { Size = Vector3.new(7, 12, 6), Offset = 4, Down = 3 },
 		MinHeight = 1, -- server check: attacker's root must be this many studs above normal standing height
-		HangSeconds = 0.25, -- attacker hangs in the air during the wind-up (client, until the hit)
+		HangSeconds = 0.4, -- attacker hangs in the air through the wind-up (a bit past the hit, for lag)
 		HangFallSpeed = 2,
 		DropVelocity = 60, -- attacker drops to the ground after the hit (studs/s, for DropSeconds)
 		DropSeconds = 0.2,

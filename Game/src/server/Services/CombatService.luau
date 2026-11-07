@@ -190,7 +190,9 @@ local function onM1(player: Player, aim: Vector3, finisherInput: string)
 	if t < chain.nextAllowedAt then
 		return
 	end
-	local dropped = t - chain.lastAt > cfg.ChainResetSeconds
+	-- Hit 4 gets a longer window (time to jump for the Downslam). Plus slack for network jitter.
+	local window = if chain.index == cfg.ChainLength - 1 then cfg.FinisherWindow else cfg.ChainResetSeconds
+	local dropped = t - chain.lastAt > window + cfg.ServerTolerance
 	if dropped and chain.index > 0 and chain.index < cfg.ChainLength and t - chain.lastAt < cfg.RestartDelay then
 		return -- string dropped before hit 4: wait before starting again (stops M1, pause, M1 stun-locks)
 	end
@@ -199,7 +201,7 @@ local function onM1(player: Player, aim: Vector3, finisherInput: string)
 	end
 	chain.index += 1
 	chain.lastAt = t
-	chain.nextAllowedAt = t + cfg.MinInterval
+	chain.nextAllowedAt = t + cfg.MinInterval - cfg.ServerTolerance
 
 	local index = chain.index
 	local isFinisher = index == cfg.ChainLength
@@ -235,7 +237,11 @@ local function onM1(player: Player, aim: Vector3, finisherInput: string)
 			push(character, root, Vector3.new(0, -d.DropVelocity, 0), d.DropSeconds)
 		end
 		if not target then
-			chain.nextAllowedAt += cfg.WhiffRecovery -- whiff punish
+			if not finisher then
+				-- Whiff punish, as a state the client can see (it then waits too), instead of a hidden
+				-- server delay that made the client and server disagree about the next hit.
+				StateService.Set(character, "EndLag", cfg.WhiffRecovery)
+			end
 			return
 		end
 
