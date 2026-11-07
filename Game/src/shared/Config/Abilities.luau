@@ -57,13 +57,44 @@ local Abilities: { AbilityDef } = {
 		Description = "An extremely fast dash with wind trails.",
 	},
 	{
+		-- Numbers from Prompts/frost_jab_prompt.md; client/Abilities/FrostJabVFX CONFIG reads them.
+		Id = "FrostJab",
+		Name = "Frost Jab",
+		Rarity = "Uncommon",
+		Type = "Melee",
+		Damage = 8 / 1.35, -- the hit deals exactly 8 after Uncommon's Power (x1.35)
+		Cooldown = 3,
+		Range = 6, -- box length in front of the HumanoidRootPart (HitboxService adds its 1.5-stud lag margin)
+		WindupSeconds = 4 / 30, -- the animation's "Hit" marker: frame 4, where the fist is furthest out
+		HitboxWidth = 5,
+		HitboxHeight = 5,
+		SlowMultiplier = 0.6, -- WalkSpeed x 0.6...
+		SlowSeconds = 1.5, -- ...for 1.5 s; a new hit refreshes it
+		MinRequestSeconds = 0.25, -- at most 1 request per 0.25 s
+		DurationSeconds = 0.45,
+		AnimationId = "rbxassetid://78544021138400", -- FrostJab_Punch (Game/assets/frost_jab.blend)
+		Description = "An icy punch that slows briefly.",
+	},
+	{
+		-- Numbers from Prompts/thunder_lance_prompt; client/Abilities/ThunderLanceVFX CONFIG reads them.
 		Id = "ThunderLance",
 		Name = "Thunder Lance",
 		Rarity = "Rare",
 		Type = "Projectile",
-		Damage = 18,
-		Cooldown = 8,
-		Range = 60,
+		Damage = 18 / 1.35 ^ 2, -- the hit deals exactly 18 after Rare's Power (x1.35 per tier above Common)
+		Cooldown = 6,
+		Range = 120, -- studs of flight; at the end it fades out with no impact
+		WindupSeconds = 15 / 30, -- the animation's "Release" marker: frame 15, the hand's fastest frame
+		ProjectileSpeed = 160,
+		ProjectileRadius = 0.175, -- the spear (0.35 thick): what stops it at walls and the ground
+		HitboxRadius = 2.5, -- finds characters; deliberately much bigger than the spear (Pebble Toss lesson)
+		ThrowOffset = Vector3.new(0.85, 1.33, 2.97), -- the hand on the Release frame (thunder_lance.blend F15)
+		ProjectileLead = 4, -- the spear's tip is 4 studs ahead of the grip; the flight tracks the tip
+		ServerClock = true, -- flown on the server clock and announced with AbilityLaunch (AbilityService)
+		MinRequestSeconds = 0.25, -- at most 1 request per 0.25 s
+		SkyStrike = true, -- stage 7B: a character hit calls a lightning strike down onto the target (AbilityStrike)
+		StrikeDamage = 0, -- balance number: the strike is visual only for now (dealt 0.15 s after the hit)
+		AnimationId = "rbxassetid://71580696171096", -- ThunderLance_Throw (Game/assets/thunder_lance.blend); markers Summon F4, Release F15
 		Description = "A fast lightning spear that flies in a straight line.",
 	},
 	{

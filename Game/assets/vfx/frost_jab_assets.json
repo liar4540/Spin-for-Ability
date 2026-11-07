@@ -1,0 +1,92 @@
+{
+ "frost_jab_punch": {
+  "assetId": "78544021138400",
+  "assetType": "Animation",
+  "sha256": "3c44917919f84e1e7a9db81b3134d2b79bafe160e139cae9be93ec29f71c115e",
+  "file": "assets/frost_jab_punch.rbxmx",
+  "creatorUserId": 202024761
+ },
+ "frost_flare": {
+  "assetId": "99043809496162",
+  "assetType": "Image",
+  "sha256": "985844ff08a25b226329ede19c45ee1e56566146c716793fa9117667c4a9ad9f",
+  "file": "assets/vfx/textures/frost_flare.png",
+  "creatorUserId": 202024761
+ },
+ "frost_snowflake": {
+  "assetId": "94567728717612",
+  "assetType": "Image",
+  "sha256": "37ce6366f2ffd3b97153d129dcc9802e4f5f878f597f182ca91ca6bdf78a443a",
+  "file": "assets/vfx/textures/frost_snowflake.png",
+  "creatorUserId": 202024761
+ },
+ "frost_shard": {
+  "assetId": "110622299282904",
+  "assetType": "Image",
+  "sha256": "d0075ea7a94361e5bb745f3c86e450d5a9dd87f6c4014474dafc2d34f1c0fb2b",
+  "file": "assets/vfx/textures/frost_shard.png",
+  "creatorUserId": 202024761
+ },
+ "frost_ring": {
+  "assetId": "77037636668101",
+  "assetType": "Image",
+  "sha256": "c768c15cdd5849b22297877285eb196cd4ee7c05c295536da587a93e68027e0f",
+  "file": "assets/vfx/textures/frost_ring.png",
+  "creatorUserId": 202024761
+ },
+ "frost_mist_flipbook": {
+  "assetId": "101720520240051",
+  "assetType": "Image",
+  "sha256": "e31f201e58faf77349a6c2892cb0a449b456bd5d3aa9543affc892721a43ffd4",
+  "file": "assets/vfx/textures/frost_mist_flipbook.png",
+  "creatorUserId": 202024761
+ },
+ "ice_shard_a.fbx": {
+  "assetId": "112314398617647",
+  "assetType": "Model",
+  "sha256": "06723dd6973ba777219275d8bd51c91e260dac25dbb461edaad0a595cbbe6056",
+  "file": "assets/ice_shard_a.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "74767379733751"
+ },
+ "ice_shard_b.fbx": {
+  "assetId": "79627289175874",
+  "assetType": "Model",
+  "sha256": "5aee1b2a9db6ef891d6a73d2ea672b64858be3b010c7840223abed53e20997b3",
+  "file": "assets/ice_shard_b.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "83748209218763"
+ },
+ "ice_shard_c.fbx": {
+  "assetId": "131645774114461",
+  "assetType": "Model",
+  "sha256": "50f0bae20e381974aafd0134c38b3be7f8c011582f819eda18bd05fa2c34f450",
+  "file": "assets/ice_shard_c.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "131712182637805"
+ },
+ "ice_shard_d.fbx": {
+  "assetId": "102612579066322",
+  "assetType": "Model",
+  "sha256": "a5ecd69c35f041d394518cdf4faf4fa7f075cf25084d71049d4796c237821917",
+  "file": "assets/ice_shard_d.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "124088321679540"
+ },
+ "frost_ring.fbx": {
+  "assetId": "95960061456193",
+  "assetType": "Model",
+  "sha256": "9296ec82abcda5a3eb5c6ca5861e44eb1911f44ab438ee88733d3eac963cd137",
+  "file": "assets/frost_ring.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "101229161717226"
+ },
+ "frost_crown.fbx": {
+  "assetId": "87164687000244",
+  "assetType": "Model",
+  "sha256": "528fb992d5537b737bc3923792c23da3b7281a612405de20689e746aaf5653e9",
+  "file": "assets/frost_crown.fbx",
+  "creatorUserId": 202024761,
+  "meshId": "128961005325770"
+ }
+}

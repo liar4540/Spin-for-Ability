@@ -72,8 +72,8 @@ In Studio, each fighter shows its state as yellow text over its head (`DebugStat
 
 ## Build order
 - [x] 1. `StateService` + `Combat.luau` synced to the PDF, debug state labels
-- [x] 2. M1 string: hitbox, damage, hitstun (test that the stunned player can't hit back)
-- [x] 3. `ApplyHit` API, then hand it to the ability team (`CombatService.ApplyHit`, `CombatService.CanAbilityHit`)
+- [ ] 2. M1 string: hitbox, damage, hitstun (test that the stunned player can't hit back)
+- [ ] 3. `ApplyHit` API, then hand it to the ability team
 - [ ] 4. Finishers: Knockback + ragdoll, Ground Smash, Uppercut
 - [ ] 5. Block + guard meter
 - [ ] 6. Dash + dash cancel, ragdoll cancel

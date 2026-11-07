@@ -1,0 +1,80 @@
+{
+ "ice_shard_a": {
+  "tris": 20,
+  "size": [
+   0.517,
+   1.6,
+   0.5824
+  ],
+  "origin_from_centre": [
+   -0.0116,
+   -0.8,
+   -0.0255
+  ]
+ },
+ "ice_shard_b": {
+  "tris": 16,
+  "size": [
+   0.6195,
+   1.1,
+   0.6616
+  ],
+  "origin_from_centre": [
+   0.0172,
+   -0.55,
+   0.013
+  ]
+ },
+ "ice_shard_c": {
+  "tris": 24,
+  "size": [
+   0.3669,
+   2.0,
+   0.4589
+  ],
+  "origin_from_centre": [
+   -0.01,
+   -1.0,
+   -0.007
+  ]
+ },
+ "ice_shard_d": {
+  "tris": 20,
+  "size": [
+   0.5743,
+   1.35,
+   0.4597
+  ],
+  "origin_from_centre": [
+   -0.0183,
+   -0.675,
+   0.0157
+  ]
+ },
+ "frost_ring": {
+  "tris": 64,
+  "size": [
+   5.0,
+   0.0,
+   5.0
+  ],
+  "origin_from_centre": [
+   -0.0,
+   -0.0,
+   0.0
+  ]
+ },
+ "frost_crown": {
+  "tris": 36,
+  "size": [
+   5.06,
+   0.8694,
+   5.2997
+  ],
+  "origin_from_centre": [
+   0.052,
+   -0.4347,
+   -0.1121
+  ]
+ }
+}

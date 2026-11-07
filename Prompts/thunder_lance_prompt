@@ -1,0 +1,194 @@
+# THUNDER LANCE: build the full skill (animation + VFX + gameplay). I only review.
+
+## ⚠️ TWO RULES THAT APPLY TO EVERY STAGE
+1. **ALWAYS follow the Lihfolk Vault.** Before Stage 0, find it: search the project and my home folder for a folder or file named like "Lihfolk Vault", "LihfolkVault" or "lihfolk". If you can't find it, STOP and ask me for the path. Read every note that relates to abilities, VFX, animation, code style or naming. Before EVERY stage, re-read the notes that apply to that stage. **If the Vault and this prompt disagree, STOP and ask me.** Don't pick one yourself.
+2. **ALWAYS cross-check before asking for my ok.** At the end of every stage, fill in this table and show it to me:
+
+| Check against | What I compared | Matches? | If not, what's different |
+|---|---|---|---|
+| This prompt (rules + CONFIG) | | ✅/❌ | |
+| Lihfolk Vault | | ✅/❌ | |
+| Reference images (by panel number) | | ✅/❌ | |
+| Earlier stages (nothing broken) | | ✅/❌ | |
+| Existing skills / project conventions | | ✅/❌ | |
+
+Fix every ❌ before you stop, or explain why you can't. Never claim something works, was exported, uploaded or tested unless you actually did it and checked the result.
+
+---
+
+## 0. The ability
+| Tier | Name | Type | Effect | VFX |
+|---|---|---|---|---|
+| Rare | Thunder Lance | Projectile | Fast lightning spear | Bright yellow-white spear (crossed ribbons), crackling trail, spark burst on hit |
+
+Attached images:
+- **Image 1:** the 12-panel reference sheet (frame-by-frame animation + VFX timing).
+- **Image 2:** the VFX breakdown sheet (each effect on its own).
+- **Any extra screenshots** I attach are inspiration for the look only.
+
+When the reference and this file disagree: the reference wins for LOOK; this file and the Vault win for RULES and NUMBERS.
+
+### CONFIG starting values
+Put ALL of these in CONFIG. ⚖️ = a balance number I decide; never change those without asking me.
+- ⚖️ Damage 18. ⚖️ Cooldown 6 s.
+- ⚖️ Projectile speed 160 studs/s. ⚖️ Max range 120 studs.
+- ⚖️ HITBOX_RADIUS 2.5 studs. This is deliberately bigger than the visual spear so it hits players reliably (lesson from Pebble Toss).
+- Visual spear: 6 studs long, 0.35 studs thick.
+- Animation: 30 frames (1.0 s) at 30 fps. "Summon" marker at F4, "Release" marker at F15.
+- Palette: white #FFFDF0, yellow #FFE14D, deep gold #FFB000. Electric blue #9FD8FF is allowed ONLY on small sparks. No other colours.
+- TIME_SCALE 1 (set it to 0.25 for slow-motion tests).
+
+---
+
+## 1. Who does what
+- I do NO manual work. You use the tools in section 2. I review your proof and reply "ok" or give a fix.
+- Work in the STAGES in section 8. At the end of each stage: run its checks, fill in the cross-check table, fix what fails, show proof, then STOP and wait for my "ok".
+- If something truly needs me (a login, an API key, a click Roblox won't let scripts do), give me numbered steps that take under 2 minutes.
+
+## 2. Tools (check in Stage 0)
+1. **Blender MCP:** run get_scene_info. Use ONE open Blender window for the whole task.
+2. **Roblox Studio MCP** (built-in, or Roblox's studio-rust-mcp-server): read game.Workspace with run_code.
+3. **Open Cloud:** ROBLOX_API_KEY in .env with Assets read/write, plus my creator user ID or group ID.
+4. **Screenshots:** use Blender MCP's viewport screenshot. For Studio, take an OS screenshot of the Studio window from the shell and open it with the Read tool so you actually look at it.
+5. **Python + Pillow:** for contact sheets, GIFs and flipbook packing.
+6. **Skills, if installed:** follow "animate-roblox-characters" for the animation phases and "roblox-security" for remotes. Use any presets in presets/ (wind_dash.lua, ice_melee.lua, …).
+If anything is missing, tell me exactly how to set it up and wait.
+
+## 3. Project rules
+- Read the existing skills first (EmberFist, PebbleToss, GaleStep, FrostJab, or whatever exists) and docs/vfx_notes.md. Copy their folder layout, module pattern, remote setup and CONFIG style.
+- PebbleToss is the closest existing projectile. Reuse what worked there and avoid what went wrong: a tiny hitbox, an invisible fast projectile, chips that never spawned, and leftover test objects.
+- Templates go in ReplicatedStorage/VFX/ThunderLance. Test objects only go in ServerStorage/Dev, never Workspace.
+- Save Blender work to assets/thunder_lance.blend after every stage. Never overwrite the original rig file.
+- 1 stud = 1 Blender unit. 30 fps everywhere.
+
+---
+
+## 4. Animation: frame-by-frame plan
+Right-handed overhand spear throw, based on real javelin technique: a long arm drawn back, a braced front leg, hips turn before shoulders, the arm comes over the top of the shoulder, then follow-through. No root motion; the character stays in place.
+
+| Frame | Name | Hips | Torso / chest | Right arm (throwing) | Left arm | Legs and weight |
+|---|---|---|---|---|---|---|
+| F0 | Ready | Square to the target | Upright | Relaxed at side, elbow 20° | Relaxed, elbow 20° | Feet shoulder-width, knees 10°, weight centred |
+| F4 | Summon ("Summon" marker) | Square | Upright | Hand raised to chest height, palm up, elbow 90° | Same as F0 | Same as F0 |
+| F8 | Spear formed | Turn 20° away from target | Turn 30° away | Hand at shoulder height, gripping the spear horizontally | Starts rising forward | Weight starts shifting back |
+| F12 | Wind-up peak | Turned 40° away | Turned 60° away (side-on): hips and shoulders 20° apart | Pulled LONG and straight behind, hand at shoulder height, elbow 10–15°, spear tip at eye level pointing at the target | Pointing straight at the target at shoulder height | Back (right) knee 30°, weight 70% on back leg; front (left) foot stepping forward |
+| F13 | Hold | Hips START turning toward target (+15°) | Stays back (stretch) | Stays back | Stays | Front foot plants; front knee nearly straight (≤10°) as a block |
+| F14 | Whip | Hips square to target | Shoulders start turning; torso tilts 15° to the LEFT, away from the throwing arm | Elbow comes forward HIGH, above shoulder height | Pulls down toward left hip | Weight moves onto the front leg |
+| F15 | Release ("Release" marker) | 20° past square | Shoulders square, chest pushed forward | Arm fully extended forward and up about 30° above horizontal, over the top of the shoulder, hand open | At left hip | Front leg braced straight; back heel lifted |
+| F18 | Follow-through | 30° past square | Leaning 30° forward | Arm sweeps down and across to the left knee | Behind the hip | Back leg swings forward, toes dragging |
+| F24 | Settle | Back toward square | Leaning 10° forward | Coming up to guard | Coming up to guard | Back foot lands; knees 15° |
+| F30 | Ready | Same as F0 | Same as F0 | Same as F0 | Same as F0 | Same as F0 (must match F0 within 1°) |
+
+### Animation rules
+- **Rig:** use the REAL R15 rig from my game. Read every Motor6D (Part0, Part1, C0, C1) and every part's size from Studio with run_code, then build or match the Blender armature to those numbers. Convert Roblox Y-up to Blender Z-up. Never rename, add or remove bones.
+- **Order of work:**
+  1. BLOCKING: the key frames above only, with CONSTANT (stepped) interpolation. Screenshot every key pose from the SIDE and 3/4 FRONT, next to the matching reference panel. Fix the poses before going further.
+  2. SPLINING: switch to Bezier. F12→F15 must be FAST (anticipation into the throw). F15 onward eases out slowly.
+  3. POLISH in the Graph Editor: hips lead, torso follows 1 frame later, then the shoulder, then the arm 1 frame after that (the whip). Add a small overshoot on F15 and let it settle.
+- **The spear in the hand:** the spear is a VFX object welded to the RightHand. It is NOT part of the rig. In Blender, parent a 6-stud stand-in spear to the hand bone so you can check the spear's angle in every pose. The spear must point at the target from F12 to F15. Never let it go through the head or body.
+- **Script checks (print the numbers each time):**
+  - Elbows and knees bend 0–150°, only in their natural direction.
+  - Wrists stay within 60° of the forearm direction.
+  - A planted foot drifts no more than 0.05 studs.
+  - Root drift is 0.
+  - F30 matches F0 within 1°.
+  - Turn on Blender Motion Paths for the right hand, F8–F24. The path must be one smooth arc that goes OVER the shoulder; screenshot it.
+  - The release frame is the frame where the hand moves fastest forward. Report it, and check it matches the Release marker (F15).
+- **Proof:** key pose screenshots next to the reference panels; an animated GIF rendered from Blender (side view, 30 fps, plus a 0.25× version); the motion path screenshot; the check results.
+- **Into Roblox:** build a KeyframeSequence in Studio with run_code by sampling EVERY frame and converting each pose to Motor6D transforms relative to rest. Add KeyframeMarkers "Summon" and "Release". Test with KeyframeSequenceProvider:RegisterKeyframeSequence. Then screenshot F0, F12, F15 and F18 in Studio next to the same Blender frames. If any limb is more than about 5° off, the conversion is wrong; fix the conversion, not the poses. Publish by uploading the .rbxm through Open Cloud (assetType Animation). If Roblox refuses, save the sequence to AnimSaves and give me the one-click step. Put the asset ID in CONFIG.
+
+---
+
+## 5. VFX: how to build each part
+Layer roles: every part is FLASH, MAIN, SECONDARY or RESIDUAL. Each gets its own CONFIG block. Nothing pops in or out; everything scales or fades in and out.
+
+| Time | Layer | Role | How to build it |
+|---|---|---|---|
+| F4–F8 | Hand crackle | SECONDARY | 2–3 short procedural bolts (see "Procedural lightning" below), 0.6 studs long, around the RightHand attachment, plus 4 tiny sparks. |
+| F8 | Spear forms | MAIN | The spear grows from the hand: Size tweens from length 0 to 6 studs over 4 frames, Quint Out, starting from the grip. |
+| F8–flight | Spear core | MAIN | Blender mesh: long diamond-tipped lance with a tapered tail, under 100 tris, UV running along its length. In Roblox: MeshPart, Neon material, colour #FFFDF0, plus an inner Beam along its length using a white-to-transparent gradient texture for the glow edge. |
+| F8–flight | Crossed ribbons | MAIN | Blender mesh: a DOUBLE HELIX of 2 thin flat ribbons, 1.5 turns over the spear length, radius 0.4, tapering at both ends, UV along each ribbon. In Roblox: MeshPart, Neon, colour #FFE14D, transparency 0.2, spinning around the spear axis at 4 turns/s. Its texture fades out at both ends. |
+| F15 | Release flash | FLASH | 8-point star texture on a BillboardGui or ParticleEmitter :Emit(1) at the hand, 5 studs, gone within 0.08 s. Plus a PointLight (#FFE14D, range 14) fading to 0 in 0.15 s. Small camera shake for the thrower only. |
+| Flight | Glow light | SECONDARY | A PointLight on the spear: range 12, brightness 2, colour #FFE14D. |
+| Flight | Crackling trail | MAIN | Procedural lightning: a bolt from the spear's tail back along the flight path, 10–14 studs long, 10 segments, regenerated every 2 frames. Old bolts fade over 0.1 s. Plus a Roblox Trail on the spear: wind-streak texture, lifetime 0.15 s, width 0.6→0. |
+| Flight | Shed sparks | RESIDUAL | ParticleEmitter on the spear: about 40/s, Squash for streaks, speed 2–6, lifetime 0.25 s, colour #FFE14D with a few #9FD8FF. |
+| Hit | Impact flash | FLASH | Star flash 8 studs, 0.08 s, plus a PointLight burst (range 20, 0.2 s). |
+| Hit | Spark burst | MAIN | ParticleEmitter :Emit(40): speed 30–50, Drag 6, small gravity, Squash, lifetime 0.3–0.5 s. Plus 5–6 short procedural bolts (2–4 studs) shooting outward from the hit point, 0.12 s each. |
+| Hit | Shock ring | SECONDARY | A thin ring mesh (Blender, UV around the ring) facing the thrower, scaling 1→6 studs over 0.2 s while fading. |
+| +0.0–0.6 s | Electric arcs on target | RESIDUAL | 2–3 small bolts jumping between random limb attachments on the target, regenerated every 3 frames. |
+| +0.0–2.0 s | Scorch mark | RESIDUAL | Raycast down from the hit point to the floor and place a Decal (scorch texture) on a thin anchored part there. It fades over the last 1 s. Skip it if there is no floor within 6 studs. |
+
+### Procedural lightning (write it once, reuse it everywhere)
+- Write ONE module, LightningBolt, that takes (startPos, endPos, segments, maxOffset, thickness, colour, lifetime).
+- Points: evenly spaced along the line. Each middle point gets a random sideways offset, up to maxOffset (default 0.6 studs). Offsets are smaller near the two ends, so the bolt stays attached.
+- Each segment is a Beam between two Attachments: texture a soft-edged white line, LightEmission 1, FaceCamera true, Width0/Width1 = thickness, Segments 1. Keep the Attachments on one anchored holder part. Reuse instances through a pool; don't Instance.new them every frame.
+- Optional: 1 small branch per bolt at a random middle point, 30–50% of the length.
+- An open-source reference exists: the "Lightning Beams" module by SamyBlue (link at the bottom). Only copy from it if its repository has a license file that allows reuse, and tell me which license. Otherwise write your own using the rules above.
+
+### Blender assets (meshes and textures)
+- Meshes: spear_core, ribbon_helix, shock_ring. Under 400 triangles total. Origins: the spear's grip point and the ring's centre. Apply transforms. Export each one separately.
+- Textures: white/greyscale on a transparent background; colour is added in Roblox. Render with an orthographic camera, Film Transparent, Standard view transform (not AgX/Filmic).
+  - star_flash.png (512)
+  - spark.png (256)
+  - glow_line.png (512×128, for the Beams)
+  - streak.png (512)
+  - scorch.png (512: dark centre, cracks, soft edge, coloured dark grey)
+- Check every texture on dark AND light backgrounds, and check for halo edges (white fringes).
+
+### Roblox rules
+- ParticleEmitters: Enabled false, use :Emit(). Size and Transparency curves have at least 3 points. Use ZOffset for layer order.
+- MeshParts and helper parts: Anchored, CanCollide/CanQuery/CanTouch false, CastShadow false.
+- Every time value is multiplied by CONFIG.TIME_SCALE.
+- Budget per cast: at most 150 particles alive, 30 Beams, 20 other instances. Disable bolts more than 200 studs from the camera.
+- Don't change the global Lighting (Bloom etc.) without asking me. Tell me if Bloom would help.
+
+---
+
+## 6. Gameplay and networking
+- **The server owns the projectile.** The client only sends "cast" with its aim direction. The server checks the cooldown, that the player is alive, a rate limit (1 per 0.25 s), and that the aim is a unit vector.
+- **The server simulates the flight:** every Heartbeat, it moves the position forward by speed × dt and uses workspace:Spherecast(lastPos, HITBOX_RADIUS, step) to detect hits. It ignores the thrower and their accessories. The first character hit takes damage once. Anything solid (a wall or the floor) stops the spear and triggers the impact VFX there. At max range, the spear fades out without an impact.
+- **There is NO server-side visual part.** The server broadcasts (casterId, origin, direction, startServerTime) to all clients. Each client renders its own visual spear from that data using workspace:GetServerTimeNow(), so it flies smoothly with no network stutter. The thrower's client starts its visual immediately on the Release marker.
+- **On a hit,** the server broadcasts (hitPosition, normal, targetId, serverTime) and every client plays the impact VFX at that exact position.
+- **Never** send Instances created on a client through remotes.
+- **Cleanup test:** count the descendants of Workspace before a cast and 3 s after it. The numbers must match. Also check the pool doesn't grow after 20 casts in a row.
+
+---
+
+## 7. Learn from good examples (do this in Stage 0)
+- If I've put a "references" place or folder in ServerStorage/References, read the properties of every effect in it with run_code (emitters, beams, curves, textures, timings). Write a short "recipe" for each one in docs/vfx_notes.md, and use those recipes as your starting values.
+- Lessons from a DevForum lightning spear attack (link below): people said the spear looked odd in the hand, launched too abruptly, and started moving too slowly. So: grip the spear properly, show a clear wind-up, and make the spear FAST from the first frame of flight.
+
+---
+
+## 8. Stages (STOP after each one and show the cross-check table)
+- **Stage 0:** Find and read the Lihfolk Vault. Check the tools, read the project and the existing skills, and do section 7. Show me what you found, any conflicts between the Vault and this prompt, and your plan.
+- **Stage 1:** Rig match. Show the Studio rig next to the Blender armature (front view) and a table comparing joint positions.
+- **Stage 2:** Animation blocking. Show the key pose screenshots next to reference panels 1–5 and 11–12.
+- **Stage 3:** Animation spline and polish. Show the GIFs, the motion path and the script check results.
+- **Stage 4:** Roblox animation. Show the Studio vs Blender comparison and the asset ID (or the one-click step).
+- **Stage 5:** VFX assets. Show contact sheets of the meshes (next to the rig for scale) and the textures (on dark and light backgrounds).
+- **Stage 6:** VFX build and gameplay code. Add the chat command /vfxtest lance, which loops the skill at TIME_SCALE 0.25 at a Training Dummy 40 studs away.
+- **Stage 7:** Compare with the reference. Screenshot the moments matching each of the 12 reference panels and stitch them next to the panels into ONE image with Pillow. List the 3 biggest differences, fix them, and re-shoot. Then show proof of:
+  - a hit when the spear passes 2 studs to the side of the dummy;
+  - a miss at 3 studs;
+  - the spear stopping at a wall with the impact on the wall;
+  - fading out at max range;
+  - two clients seeing the same impact position;
+  - the cleanup count;
+  - 20 rapid casts being rejected by the cooldown, with no errors.
+
+## 9. Finally
+- List every file, asset ID, script and instance you created.
+- Report anything you couldn't do or aren't sure about.
+- Save the final CONFIG as presets/lightning_projectile.lua.
+- Add "what worked / what to avoid" notes to docs/vfx_notes.md. Add them to the Lihfolk Vault too, if the Vault has a place for notes like this; ask me if it isn't clear.
+
+## Reference links
+- Lightning Beams module (procedural lightning, Roblox): https://devforum.roblox.com/t/effect-v11-lightning-beams-seamless-smooth-and-procedurally-animated-with-beam-like-properties/843534 (code on GitHub: SamyBlue/Lightning-Beams; check the license first)
+- Yuruzuu's open-source VFX (Lightning Blade, Lightning Strike and Thunder Spear place files; free to use, don't claim them as your own): https://devforum.roblox.com/t/yuruzuus-open-source-vfx/1840021
+- Feedback on a lightning spear attack (what looked wrong): https://devforum.roblox.com/t/lightning-fire-spear-attack/1150536
+- Javelin throw biomechanics (poses and order of motion): https://theconversation.com/science-of-the-spear-biomechanics-of-a-javelin-throw-29782
+- Roblox Beams (CurveSize, Segments, Width): https://create.roblox.com/docs/effects/beams
+- Roblox Studio MCP: https://github.com/Roblox/studio-rust-mcp-server
+- Open Cloud asset upload (Animation as .rbxm): https://create.roblox.com/docs/cloud/guides/usage-assets
+- AI Roblox animation skill (phases, audits, GIF checks): https://github.com/dillydog580/animate-roblox-characters

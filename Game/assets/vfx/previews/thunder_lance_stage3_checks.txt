@@ -1,0 +1,59 @@
+Thunder Lance - stage 3 animation checks (check_thunder_lance_anim.py, Blender 5.2, ThunderLanceRig, action ThunderLance_Throw)
+
+1. ELBOWS / KNEES  (bend deg; natural = elbow Rx+, knee Rx-)
+   RightElbow   11.4 - 130.8 deg  OK 
+   LeftElbow     0.0 - 113.1 deg  OK 
+   RightKnee    10.4 -  83.6 deg  OK 
+   LeftKnee      9.2 -  84.5 deg  OK 
+2. WRISTS  (angle between the hand's and the forearm's direction, deg)
+   RightWrist max   0.0 deg (frame 30)
+   LeftWrist max   0.1 deg (frame 30)
+3. FEET  (drift of planted contact points inside their windows, studs)
+   LeftHeel  F 0-F 8: 0.0000 at whole frames, 0.0003 with sub-frames
+   LeftHeel  F13-F24: 0.0000 at whole frames, 0.0038 with sub-frames
+   LeftHeel  F29-F30: 0.0000 at whole frames, 0.0000 with sub-frames
+   LeftToe   F 0-F 8: 0.0000 at whole frames, 0.0003 with sub-frames
+   LeftToe   F13-F24: 0.0000 at whole frames, 0.0074 with sub-frames
+   LeftToe   F29-F30: 0.0000 at whole frames, 0.0000 with sub-frames
+   RightHeel F 0-F13: 0.0000 at whole frames, 0.0140 with sub-frames
+   RightHeel F24-F30: 0.0000 at whole frames, 0.0014 with sub-frames
+   RightToe  F 0-F15: 0.0003 at whole frames, 0.0134 with sub-frames
+   RightToe  F24-F30: 0.0000 at whole frames, 0.0013 with sub-frames
+4. ROOT  HumanoidRootPart drift 0.000000 studs, rotation 0.0000 deg
+5. F0 vs F30  largest joint difference 0.0000 deg (Waist)
+6. RIGHT HAND PATH F8-F24  (frame: position | forward step)
+    8: (+1.81, -0.68, +4.14) | -0.610
+    9: (+1.85, -1.10, +4.18) | -0.417
+   10: (+1.85, -1.49, +4.21) | -0.396
+   11: (+1.71, -1.92, +4.20) | -0.430
+   12: (+1.59, -2.16, +4.12) | -0.233
+   13: (+1.53, -1.46, +4.30) | +0.702
+   14: (+1.02, +0.25, +4.54) | +1.708
+   15: (+0.85, +2.97, +4.52) | +2.720
+   16: (+0.65, +3.42, +3.89) | +0.448
+   17: (+0.26, +2.55, +2.66) | -0.868
+   18: (+0.08, +1.65, +1.98) | -0.899
+   19: (+0.11, +1.46, +2.08) | -0.191
+   20: (+0.12, +1.35, +2.31) | -0.115
+   21: (+0.18, +1.31, +2.70) | -0.038
+   22: (+0.27, +1.32, +3.10) | +0.006
+   23: (+0.34, +1.34, +3.42) | +0.023
+   24: (+0.38, +1.35, +3.55) | +0.014
+   sharpest turn while moving > 0.3 studs/frame: 24.0 deg per 1/10 frame at frame 15.10 (limit 25.0); finest scale (1/100 frame): 104.3 deg at 12.10, info only
+   forward/back reversal at frame 11.86: slowest 0.168 studs/frame -> turns round on a curve (see the sharpest-turn line)
+   forward/back reversal at frame 11.90: slowest 0.168 studs/frame -> turns round on a curve (see the sharpest-turn line)
+   forward/back reversal at frame 11.93: slowest 0.168 studs/frame -> turns round on a curve (see the sharpest-turn line)
+   over the shoulder: on F13-F15 the hand rises +0.76 studs above the right shoulder joint
+7. RELEASE  (forward = +Y, toward the target)
+   largest forward step lands on F15 (2.720 studs in that frame)
+   forward speed peaks at frame 14.54 (3.67 studs/frame = 110 studs/s); Release marker F15
+SUMMARY
+   PASS  elbows/knees 0-150, natural direction
+   PASS  wrists within 60 deg of the forearm
+   PASS  planted feet drift <= 0.02 (whole frames)
+   PASS  planted feet drift <= 0.02 (10 samples per frame)
+   PASS  root drift 0
+   PASS  F30 == F0 within 1.0 deg
+   PASS  hand path smooth (no turn > 25.0 deg per 1/10 frame while moving)
+   PASS  hand path goes over the shoulder
+   PASS  release = the hand's fastest forward frame = Release marker (F15)

@@ -1,0 +1,46 @@
+Thunder Lance - Stage 7B (sky lightning strike) tests, Studio Play mode, 2026-11-08.
+Server shots use ServerStorage.Dev.AbilityTestHook ("Projectile": the real useClockProjectile, now followed
+by skyStrike on a character hit). The client logged every AbilityHit / AbilityStrike and each
+ThunderLanceStrike_<name> folder with its crater position.
+
+1. CONTACT SHEET (TIME_SCALE 0.25, /vfxtest lance): thunder_lance_stage7b_strike.png
+   charge 0.091 s | 1st strike 0.176 | flicker dip 0.214 | 2nd strike 0.250 | shockwave 0.335 |
+   debris 0.555 | smoke 0.998 | crater 2.494 (game seconds after the spear's impact)
+
+2. STRIKE ONLY ON A CHARACTER HIT
+   server WALL (12x10x1 test wall from ServerStorage.Dev, put back after):
+     Hit=true Target=nil stop (20.00, 4.00, -29.50)  -> client: AbilityHit only, NO AbilityStrike
+   server MAX RANGE (open space along -X):
+     Hit=false travelled 120.00                       -> client: nothing (no hit, no strike)
+   server DUMMY (control):
+     Hit=true Target=Training Dummy stop (-6.98, 3.44, -13.03)
+     -> client: AbilityHit, then AbilityStrike 2 ms later, ground (-6.00, 0.00, -14.00) (straight below the
+        dummy's root at (-6.00, 3.19, -14.00)); crater plate at (-6.00, 0.03, -14.00)
+
+3. TARGET DIES ON THE SPEAR HIT (thunder_lance_stage7b_dead_target.png)
+   Training dummies can't die (CombatService sets them back to 1 HP), so the target is a clone of the dummy
+   set up in ServerStorage.Dev (no "never die" setup), moved to (-20, 3.19, -14) with 10 HP, destroyed after.
+   server: Hit=true Target=TL_KillableTarget; Humanoid.Died 199 ms after firing; state Dead
+   client: AbilityHit (-20.98, 3.44, -13.03), AbilityStrike ground (-20.00, 0.00, -14.00), crater (-20.00, 0.03, -14.00)
+
+4. PEAK COUNTS AND CLEANUP (10 real hotbar casts in a row, key 4, hitting the dummy, 6.4 s apart)
+   Budget for the strike alone: 120 particles, 90 Beams, 30 other instances.
+   Workspace descendants on the frame before each cast and 4.5 s after it (the impact is at ~0.7 s, the
+   strike is gone 3.4 s after the impact); the strike folder's own peaks (OwnBeamsPeak, VFXObjects,
+   ParticlesEmitted); bolt pool = Beams on workspace.ClientVFX.LightningBolts.
+   cast  1: before 893, +4.5 s 1284 (diff +391), peak +445; strike: Beams peak 90, VFX objects 26, particles 37; bolt pool 130
+   cast  2: before 1284, +4.5 s 1284 (diff +0), peak +53; strike: Beams peak 84, VFX objects 25, particles 37; bolt pool 130
+   cast  3: before 1284, +4.5 s 1284 (diff +0), peak +55; strike: Beams peak 84, VFX objects 27, particles 38; bolt pool 130
+   cast  4: before 1284, +4.5 s 1284 (diff +0), peak +52; strike: Beams peak 90, VFX objects 24, particles 38; bolt pool 130
+   cast  5: before 1284, +4.5 s 1284 (diff +0), peak +54; strike: Beams peak 90, VFX objects 26, particles 37; bolt pool 130
+   cast  6: before 1284, +4.5 s 1284 (diff +0), peak +53; strike: Beams peak 84, VFX objects 25, particles 38; bolt pool 130
+   cast  7: before 1284, +4.5 s 1284 (diff +0), peak +52; strike: Beams peak 78, VFX objects 24, particles 39; bolt pool 130
+   cast  8: before 1284, +4.5 s 1284 (diff +0), peak +53; strike: Beams peak 84, VFX objects 25, particles 38; bolt pool 130
+   cast  9: before 1284, +4.5 s 1284 (diff +0), peak +53; strike: Beams peak 90, VFX objects 25, particles 38; bolt pool 130
+   cast 10: before 1284, +4.5 s 1284 (diff +0), peak +54; strike: Beams peak 90, VFX objects 26, particles 38; bolt pool 130
+   -> cast 1's +391 is the bolt pool made once per session: 130 Beams x (Beam + 2 Attachments) + its holder
+      part (LightningBolt.Prewarm). Every later cast: +0, pool flat at 130.
+   Strike peaks: Beams 78-90 (budget 90), VFX objects 24-28 (budget 30), particles 37-39 (budget 120).
+   Before the two fixes: one cast peaked at 102 Beams (ground arcs started on the bolt's last frame at full
+   speed), and the pool grew 113 -> 120 on a 5th cast. Both fixed and re-measured above.
+   Output: no errors from the game's scripts (only the place's existing rbxassetid://203785492 line).

@@ -1,0 +1,36 @@
+Frost Jab - Stage 7 gameplay tests (Studio Play mode, 2026-11-06). Real server path unless noted.
+Target: Workspace.Dummies."Training Dummy" at (-6, 3.19, -14). Logged on the server every frame
+(only changes are printed). t = server seconds from the start of each log.
+
+1. SLOW: before / during / after (key 4 pressed, attacker 4.4 studs away)
+t=0.000  hp 200.00  WalkSpeed 16.00  SlowMultiplier nil  SlowEndsAt-now nil
+t=0.316  hp 192.00  WalkSpeed 9.60  SlowMultiplier 0.6  SlowEndsAt-now 1.482
+t=1.816  hp 192.00  WalkSpeed 16.00  SlowMultiplier nil  SlowEndsAt-now nil
+t=2.315  hp 200.00  WalkSpeed 16.00  SlowMultiplier nil  SlowEndsAt-now nil   (dummy self-heal, 2 s)
+-> 8 damage, WalkSpeed x0.6 for 1.50 s, then back to 16.
+
+2. NO STACKING: two hits 0.7 s apart (Studio-only server hook ServerStorage.Dev.AbilityTestHook runs
+   the real melee path twice; the 3 s cooldown never allows this from one player)
+hit 1 requested at t=0.201, hit 2 at t=0.916 (each lands 0.133 s later, the Hit marker time)
+t=0.000  hp 200.00  WalkSpeed 16.00  SlowMultiplier nil  SlowEndsAt nil
+t=0.367  hp 192.00  WalkSpeed 9.60  SlowMultiplier 0.6  SlowEndsAt 1.851
+t=1.068  hp 184.00  WalkSpeed 9.60  SlowMultiplier 0.6  SlowEndsAt 2.550
+t=2.568  hp 184.00  WalkSpeed 16.00  SlowMultiplier nil  SlowEndsAt nil
+t=3.068  hp 200.00  WalkSpeed 16.00  SlowMultiplier nil  SlowEndsAt nil
+-> second hit: WalkSpeed stays 9.60 (not 5.76), timer refreshed to 1.5 s after hit 2.
+
+3. CLEANUP (client, key 4, normal speed)
+Workspace descendants: before 893, 3 s after the cast 893 (difference 0); peak +25;
+VFX objects FrostJab_<player>=9, FrostJabHit_Training Dummy=6 (total 15)
+(The first cast of a session also creates the shared, empty workspace.ClientVFX container used by
+every skill's VFX: that run read 892 -> 893. Every later cast: difference 0.)
+
+4. MISS just outside the box (box = 5 wide x 5 tall x 6 long + 1.5 lag margin = 7.5 studs)
+attacker root 8.10 studs from the dummy root; nearest dummy point along the punch 7.520 studs
+t=0.000  hp 200.00  WalkSpeed 16.00  SlowMultiplier nil      (no change for 4 s)
+AbilityImpact on the client: none
+Control, just inside: attacker root 7.90 studs; nearest dummy point 7.320 studs
+t=0.000  hp 200.00  WalkSpeed 16.00  SlowMultiplier nil
+t=0.249  hp 192.00  WalkSpeed 9.60  SlowMultiplier 0.6
+t=1.766  hp 192.00  WalkSpeed 16.00  SlowMultiplier nil
+t=2.265  hp 200.00  WalkSpeed 16.00  SlowMultiplier nil

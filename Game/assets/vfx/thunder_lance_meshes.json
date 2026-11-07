@@ -1,0 +1,42 @@
+{
+ "spear_core": {
+  "tris": 48,
+  "sizeRoblox": [
+   0.6,
+   0.3031,
+   6.0
+  ],
+  "originFromCentreRoblox": [
+   -0.0,
+   -0.0,
+   1.0
+  ]
+ },
+ "ribbon_helix": {
+  "tris": 96,
+  "sizeRoblox": [
+   0.754,
+   0.8,
+   6.0008
+  ],
+  "originFromCentreRoblox": [
+   -0.0,
+   -0.0,
+   1.0
+  ]
+ },
+ "shock_ring": {
+  "tris": 64,
+  "sizeRoblox": [
+   1.0,
+   0.0,
+   1.0
+  ],
+  "originFromCentreRoblox": [
+   -0.0,
+   -0.0,
+   0.0
+  ]
+ },
+ "_note": "Roblox axes. Imported meshes are centred on their bounding box; the Blender origin (spear grip, ring centre) sits at originFromCentreRoblox from that centre."
+}

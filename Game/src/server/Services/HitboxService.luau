@@ -9,6 +9,18 @@ local HitboxService = {}
 local LAG_MARGIN = 1.5
 local BOX_HEIGHT = 7
 
+-- The box: starts at the root, `length` studs long toward aim (flattened), centred on the root's
+-- height, moved down by `down` studs.
+local function boxInFront(rootPart: BasePart, aim: Vector3, length: number, down: number?): CFrame
+	local flat = Vector3.new(aim.X, 0, aim.Z)
+	if flat.Magnitude < 0.01 then
+		flat = rootPart.CFrame.LookVector
+	end
+	flat = flat.Unit
+	local center = rootPart.Position + flat * (length / 2) - Vector3.new(0, down or 0, 0)
+	return CFrame.lookAt(center, center + flat)
+end
+
 -- Every living humanoid whose body touches a box in front of rootPart, facing along aim.
 -- Never returns the attacker's own humanoid. Returns at most maxTargets.
 -- height: box height in studs, centred on rootPart (default 7), moved down by `down`.
@@ -22,23 +34,30 @@ function HitboxService.InFront(
 	height: number?,
 	down: number? -- shift the box this many studs down (e.g. a Downslam from a jump)
 ): { Humanoid }
-	local flat = Vector3.new(aim.X, 0, aim.Z)
-	if flat.Magnitude < 0.01 then
-		flat = rootPart.CFrame.LookVector
-	end
-	flat = flat.Unit
-
 	local length = range + LAG_MARGIN
-	local center = rootPart.Position + flat * (length / 2) - Vector3.new(0, down or 0, 0)
-	local boxCFrame = CFrame.lookAt(center, center + flat)
+	return HitboxService.Query(
+		attacker,
+		boxInFront(rootPart, aim, length, down),
+		Vector3.new(width, height or BOX_HEIGHT, length),
+		maxTargets
+	)
+end
 
+-- Same, with an exact width x height box: `length` studs from the root (+ the lag margin).
+function HitboxService.InBox(attacker: Model, rootPart: BasePart, aim: Vector3, width: number, height: number, length: number, maxTargets: number): { Humanoid }
+	local total = length + LAG_MARGIN
+	return HitboxService.Query(attacker, boxInFront(rootPart, aim, total), Vector3.new(width, height, total), maxTargets)
+end
+
+-- Every living humanoid (each once) whose body touches the box, never the attacker's own.
+function HitboxService.Query(attacker: Model, boxCFrame: CFrame, size: Vector3, maxTargets: number): { Humanoid }
 	local params = OverlapParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { attacker }
 
 	local found: { Humanoid } = {}
 	local seen: { [Humanoid]: boolean } = {}
-	for _, part in workspace:GetPartBoundsInBox(boxCFrame, Vector3.new(width, height or BOX_HEIGHT, length), params) do
+	for _, part in workspace:GetPartBoundsInBox(boxCFrame, size, params) do
 		local model = part:FindFirstAncestorOfClass("Model")
 		local humanoid = model and model:FindFirstChildOfClass("Humanoid")
 		if humanoid and not seen[humanoid] and humanoid.Health > 0 then
