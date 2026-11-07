@@ -8,6 +8,7 @@
 --  * The state is mirrored to the character as the attribute "CombatState" so clients and UI can read it.
 
 local CollectionService = game:GetService("CollectionService")
+local PhysicsService = game:GetService("PhysicsService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -181,6 +182,17 @@ function StateService.MarkAbilityUsed(model: Model, abilityId: string)
 	end
 end
 
+-- Fighters (players + dummies) don't collide with each other, like most battlegrounds games:
+-- otherwise bodies bump and push the attacker away mid-combo (worst in the air after an Uppercut).
+-- They still collide with the map. Hits use hitboxes, not touching.
+local FIGHTER_GROUP = "Fighters"
+
+local function setGroup(part: Instance)
+	if part:IsA("BasePart") then
+		part.CollisionGroup = FIGHTER_GROUP
+	end
+end
+
 local function register(model: Model)
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	if not humanoid or fighters[model] then
@@ -198,6 +210,11 @@ local function register(model: Model)
 	}
 	fighters[model] = f
 	model:SetAttribute("CombatState", "Idle")
+	CollectionService:AddTag(model, "Fighter") -- clients find fighters by this tag (hit reactions)
+	for _, part in model:GetDescendants() do
+		setGroup(part)
+	end
+	model.DescendantAdded:Connect(setGroup) -- accessories, tools, late-loading parts
 	model.AncestryChanged:Connect(function(_, parent)
 		if not parent then
 			fighters[model] = nil
@@ -216,7 +233,10 @@ local function onTimerEnd(f: Fighter)
 	end
 end
 
-function StateService.Init() end
+function StateService.Init()
+	PhysicsService:RegisterCollisionGroup(FIGHTER_GROUP)
+	PhysicsService:CollisionGroupSetCollidable(FIGHTER_GROUP, FIGHTER_GROUP, false)
+end
 
 function StateService.Start()
 	local function onPlayer(player: Player)

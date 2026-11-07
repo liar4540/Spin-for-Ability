@@ -11,7 +11,17 @@ local BOX_HEIGHT = 7
 
 -- Every living humanoid whose body touches a box in front of rootPart, facing along aim.
 -- Never returns the attacker's own humanoid. Returns at most maxTargets.
-function HitboxService.InFront(attacker: Model, rootPart: BasePart, aim: Vector3, range: number, width: number, maxTargets: number): { Humanoid }
+-- height: box height in studs, centred on rootPart (default 7), moved down by `down`.
+function HitboxService.InFront(
+	attacker: Model,
+	rootPart: BasePart,
+	aim: Vector3,
+	range: number,
+	width: number,
+	maxTargets: number,
+	height: number?,
+	down: number? -- shift the box this many studs down (e.g. a Downslam from a jump)
+): { Humanoid }
 	local flat = Vector3.new(aim.X, 0, aim.Z)
 	if flat.Magnitude < 0.01 then
 		flat = rootPart.CFrame.LookVector
@@ -19,7 +29,7 @@ function HitboxService.InFront(attacker: Model, rootPart: BasePart, aim: Vector3
 	flat = flat.Unit
 
 	local length = range + LAG_MARGIN
-	local center = rootPart.Position + flat * (length / 2)
+	local center = rootPart.Position + flat * (length / 2) - Vector3.new(0, down or 0, 0)
 	local boxCFrame = CFrame.lookAt(center, center + flat)
 
 	local params = OverlapParams.new()
@@ -28,7 +38,7 @@ function HitboxService.InFront(attacker: Model, rootPart: BasePart, aim: Vector3
 
 	local found: { Humanoid } = {}
 	local seen: { [Humanoid]: boolean } = {}
-	for _, part in workspace:GetPartBoundsInBox(boxCFrame, Vector3.new(width, BOX_HEIGHT, length), params) do
+	for _, part in workspace:GetPartBoundsInBox(boxCFrame, Vector3.new(width, height or BOX_HEIGHT, length), params) do
 		local model = part:FindFirstAncestorOfClass("Model")
 		local humanoid = model and model:FindFirstChildOfClass("Humanoid")
 		if humanoid and not seen[humanoid] and humanoid.Health > 0 then

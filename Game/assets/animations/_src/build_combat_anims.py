@@ -292,6 +292,112 @@ DOWN = {
                  LeftArm=ARM((-1.00, 1.10, 3.10), (-0.6, -0.3, -1))),
 }
 
+# ---- hit reactions (played on whoever GETS hit; reference: gameplay recording 2026-11-04) -------------
+# Arms (and for Launched / KnockedDown the legs too) are plain joint rotations here instead of IK targets:
+# "RightShoulder"/"RightElbow"/"RightWrist" keys replace "RightArm"; legs="free" specs key
+# "RightHip"/"RightKnee"/"RightAnkle" from the pose instead of solving planted feet.
+def LIMP(side, fwd=8, out=12, bend=25):
+    s = -1 if side == "Right" else 1  # Ry(-) lifts the right arm out, Ry(+) the left
+    return {f"{side}Shoulder": Ry(s * out) @ Rx(fwd), f"{side}Elbow": Rx(bend), f"{side}Wrist": Rx(-8)}
+
+
+def REACT(hips, Waist, Neck, **joints):
+    d = {"hips": hips, "Waist": Waist, "Neck": Neck}
+    d.update(LIMP("Right"))
+    d.update(LIMP("Left"))
+    d.update(joints)
+    return d
+
+
+# Stunned - dazed loop: bent forward, head drooping to one side, arms hanging limp, swaying.
+DAZED = REACT((V((0, -0.06, -0.36)), Rz(6) @ Rx(-6)), Rz(4) @ Rx(-14), Rz(12) @ Rx(-20),
+              **LIMP("Right", 6, 14, 28), **LIMP("Left", 12, 10, 22))
+DAZED_SWAY = REACT((V((0, -0.04, -0.33)), Rz(-6) @ Rx(-4)), Rz(-5) @ Rx(-11), Rz(-12) @ Rx(-16),
+                   **LIMP("Right", 14, 10, 22), **LIMP("Left", 4, 14, 30))
+# Flinch - one hit lands: snapped back (head thrown back, chest arched, arms flung forward), then
+# settles back into the dazed pose.
+JOLT = REACT((V((0, -0.24, -0.30)), Rx(9)), Rx(16), Rz(6) @ Rx(30),
+             **LIMP("Right", 38, 26, 45), **LIMP("Left", 30, 30, 38))
+
+# Launched - in the air after an Uppercut: body tipped back, face to the sky, arms out and trailing,
+# legs dangling, a slow flail.
+AIR_LEGS = {"RightHip": Rx(30), "RightKnee": Rx(-62), "RightAnkle": Rx(-20),
+            "LeftHip": Rx(6), "LeftKnee": Rx(-34), "LeftAnkle": Rx(-15)}
+AIR_LEGS2 = {"RightHip": Rx(10), "RightKnee": Rx(-38), "RightAnkle": Rx(-15),
+             "LeftHip": Rx(28), "LeftKnee": Rx(-64), "LeftAnkle": Rx(-20)}
+AIR = REACT((V((0, 0, 0)), Rx(14)), Rx(16), Rx(38),
+            RightShoulder=Ry(-55) @ Rx(-20), RightElbow=Rx(28),
+            LeftShoulder=Ry(55) @ Rx(-25), LeftElbow=Rx(22), **AIR_LEGS)
+AIR2 = REACT((V((0, 0, 0.05)), Rx(18)), Rx(20), Rx(32),
+             RightShoulder=Ry(-72) @ Rx(-8), RightElbow=Rx(38),
+             LeftShoulder=Ry(70) @ Rx(-14), LeftElbow=Rx(30), **AIR_LEGS2)
+
+# KnockedDown - after a Downslam (or a Knockback ragdoll): flat on the back, face up, head rolled to
+# the side, arms thrown out, one knee up; the chest rises and falls. HumanoidRootPart stays upright,
+# so the Root joint tips the whole body back 90 deg and drops it to the floor.
+LIE_Z = 0.5 - rig.data.bones["Root"].head_local.z  # lower-torso centre ~0.5 above the floor
+LIE_LEGS = {"RightHip": Rx(24), "RightKnee": Rx(-48), "RightAnkle": Rx(10),
+            "LeftHip": Ry(-6) @ Rx(4), "LeftKnee": Rx(-10), "LeftAnkle": Rx(20)}
+LIE = REACT((V((0, 0, LIE_Z)), Rx(90)), Rx(-3), Rz(28) @ Rx(6),
+            RightShoulder=Ry(-78) @ Rx(10), RightElbow=Rx(35),
+            LeftShoulder=Ry(62) @ Rx(-6), LeftElbow=Rx(18), **LIE_LEGS)
+LIE2 = REACT((V((0, 0, LIE_Z)), Rx(90)), Rx(-7), Rz(26) @ Rx(4),
+             RightShoulder=Ry(-80) @ Rx(12), RightElbow=Rx(38),
+             LeftShoulder=Ry(64) @ Rx(-4), LeftElbow=Rx(20), **LIE_LEGS)
+
+# Downslam (air) - the finisher of the air combo, thrown while hanging next to the target after an
+# Uppercut. Knees tuck, the body arches back with both fists high overhead, then everything whips
+# forward and down: hips pitch forward, the double-fist hammer comes down in front and the legs kick
+# back behind for the counter-swing; deep follow-through, then it opens back up (the attacker is
+# dropping to the ground by then). Legs are free (no planted feet in the air).
+def AIRP(hips, Waist, Neck, legs, **arms):
+    d = dict(READY)
+    d.update(hips=hips, Waist=Waist, Neck=Neck, **arms)
+    d.update(legs)
+    return d
+
+
+TUCK_LEGS = {"RightHip": Rx(55), "RightKnee": Rx(-95), "RightAnkle": Rx(-15),
+             "LeftHip": Rx(40), "LeftKnee": Rx(-85), "LeftAnkle": Rx(-15)}
+RAISE_LEGS = {"RightHip": Rx(62), "RightKnee": Rx(-112), "RightAnkle": Rx(-20),
+              "LeftHip": Rx(45), "LeftKnee": Rx(-100), "LeftAnkle": Rx(-20)}
+KICK_LEGS = {"RightHip": Rx(-18), "RightKnee": Rx(-85), "RightAnkle": Rx(-25),
+             "LeftHip": Rx(-4), "LeftKnee": Rx(-65), "LeftAnkle": Rx(-20)}
+KICK_LEGS2 = {"RightHip": Rx(-24), "RightKnee": Rx(-92), "RightAnkle": Rx(-25),
+              "LeftHip": Rx(-8), "LeftKnee": Rx(-72), "LeftAnkle": Rx(-20)}
+OPEN_LEGS = {"RightHip": Rx(12), "RightKnee": Rx(-35), "RightAnkle": Rx(-10),
+             "LeftHip": Rx(4), "LeftKnee": Rx(-25), "LeftAnkle": Rx(-10)}
+AIR_DOWN = {
+    "tuck": AIRP((V((0, -0.05, 0.10)), Rx(8)), Rx(6), Rx(-6), TUCK_LEGS,
+                 RightArm=ARM((0.70, 0.40, 4.70), (0.7, -0.4, -0.3)), RightWrist=Rx(-8),
+                 LeftArm=ARM((-0.70, 0.40, 4.70), (-0.7, -0.4, -0.3)), LeftWrist=Rx(-8)),
+    "raise": AIRP((V((0, -0.15, 0.15)), Rx(20)), Rx(24), Rx(-16), RAISE_LEGS,
+                  RightArm=ARM((0.45, -0.60, 6.10), (0.7, -0.3, 0.2)), RightWrist=Rx(-14),
+                  LeftArm=ARM((-0.45, -0.60, 6.10), (-0.7, -0.3, 0.2)), LeftWrist=Rx(-14)),
+    "hit": AIRP((V((0, 0.30, -0.05)), Rx(-32)), Rx(-28), Rx(24), KICK_LEGS,
+                RightArm=ARM((0.40, 2.60, 1.10), (0.6, 0, 0.3), 8), RightWrist=Rx(-6),
+                LeftArm=ARM((-0.40, 2.60, 1.10), (-0.6, 0, 0.3), 8), LeftWrist=Rx(-6)),
+    "over": AIRP((V((0, 0.36, -0.10)), Rx(-40)), Rx(-32), Rx(28), KICK_LEGS2,
+                 RightArm=ARM((0.42, 2.20, 0.60), (0.6, 0, 0.3), 4), RightWrist=Rx(-6),
+                 LeftArm=ARM((-0.42, 2.20, 0.60), (-0.6, 0, 0.3), 4), LeftWrist=Rx(-6)),
+    "recover": AIRP((V((0, 0.12, -0.05)), Rx(-12)), Rx(-12), Rx(10), OPEN_LEGS,
+                    # same elbow pole family as the hammer, so the arms lift without flipping
+                    RightArm=ARM((0.80, 1.70, 2.70), (0.6, 0, 0.3), 30),
+                    LeftArm=ARM((-0.80, 1.70, 2.70), (-0.6, 0, 0.3), 30)),
+}
+
+REACTIONS = {
+    # loops: start == end. hit = 0 (no impact frame; kept so the export picks them up).
+    "Stunned": dict(length=0.80, hit=0.0, lead=(0, 0), stance=FEET_SQUARE, loop=True,
+                    keys=[(0, DAZED), (12.0, DAZED_SWAY), (24.0, DAZED)], heel={}),
+    "Flinch": dict(length=0.35, hit=0.06, lead=(0, 0), stance=FEET_SQUARE,
+                   keys=[(0, DAZED), (1.8, JOLT), (5.0, DAZED_SWAY), (10.5, DAZED)], heel={}),
+    "Launched": dict(length=0.80, hit=0.0, lead=(0, 0), legs="free", loop=True,
+                     keys=[(0, AIR), (12.0, AIR2), (24.0, AIR)]),
+    "KnockedDown": dict(length=1.20, hit=0.0, lead=(0, 0), legs="free", loop=True,
+                        keys=[(0, LIE), (18.0, LIE2), (36.0, LIE)]),
+}
+
 # name: length (s), hit (s), [(frame, pose)], heel lifts {side: [(frame, deg)]}, foot steps
 # {side: [(frame, (dx, dy, lift))]}, hips/torso lead (frames). All start and end on READY.
 ANIMS = {
@@ -325,11 +431,14 @@ ANIMS = {
                      # rises onto the toes as the legs extend
                      heel={"Right": [(0, 0), (2.0, 0), (4.5, 26), (6.2, 30), (9.0, 6), (12.0, 0)],
                            "Left": [(0, 0), (2.0, 0), (4.5, 14), (6.2, 18), (9.0, 4), (12.0, 0)]}),
-    "Downslam": dict(length=0.45, hit=0.25, lead=(0.7, 0.35), stance=FEET_SQUARE,
-                     keys=[(0, READY), (3.5, DOWN["raise"]), (5.2, DOWN["hold"]), (7.5, DOWN["hit"]),
-                           (9.0, DOWN["over"]), (11.5, DOWN["recover"]), (13.5, READY)],
+    # air version (AIR_DOWN); the old standing hammer (DOWN) is kept above for reference
+    "Downslam": dict(length=0.45, hit=0.25, lead=(0.7, 0.35), legs="free",
+                     keys=[(0, AIR_DOWN["tuck"]), (3.5, AIR_DOWN["raise"]), (5.2, AIR_DOWN["raise"]),
+                           (7.5, AIR_DOWN["hit"]), (9.0, AIR_DOWN["over"]), (11.5, AIR_DOWN["recover"]),
+                           (13.5, READY)],
                      heel={}),
 }
+ANIMS.update(REACTIONS)
 
 
 # --- keying -----------------------------------------------------------------------------------------
@@ -482,11 +591,20 @@ def build_action(name, spec):
         prev["Waist"] = key_rotation(rig.pose.bones["Waist"], pose["Waist"], ft, prev.get("Waist"))
         prev["Neck"] = key_rotation(rig.pose.bones["Neck"], pose["Neck"], frame, prev.get("Neck"))
         for side in ("Right", "Left"):
-            D_sh, D_el = solve_arm(side, pose)
+            if f"{side}Shoulder" in pose:  # hit reactions: plain rotations
+                D_sh, D_el = pose[f"{side}Shoulder"], pose[f"{side}Elbow"]
+            else:
+                D_sh, D_el = solve_arm(side, pose)
             for j, D in ((f"{side}Shoulder", D_sh), (f"{side}Elbow", D_el), (f"{side}Wrist", pose[f"{side}Wrist"])):
                 prev[j] = key_rotation(rig.pose.bones[j], D, frame, prev.get(j))
-    for t in sample_times(spec):
-        key_legs(t, spec["heel"], prev, report, spec.get("stance"), spec.get("steps"))
+        if spec.get("legs") == "free":
+            for side in ("Right", "Left"):
+                for j in ("Hip", "Knee", "Ankle"):
+                    name = f"{side}{j}"
+                    prev[name] = key_rotation(rig.pose.bones[name], pose.get(name, I), frame, prev.get(name))
+    if spec.get("legs") != "free":
+        for t in sample_times(spec):
+            key_legs(t, spec["heel"], prev, report, spec.get("stance"), spec.get("steps"))
 
     # all keys Bezier, auto-clamped handles (the impact key sits between the anticipation and the
     # over-extension extremes, so the fist is still accelerating through the hit).

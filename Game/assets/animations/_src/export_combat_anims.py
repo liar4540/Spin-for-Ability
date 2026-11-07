@@ -3,7 +3,7 @@
     blender.exe -b ..\\combat_anims.blend -P export_combat_anims.py
 Writes, for every action with a "hit_time":
   1. Game/src/client/Animations/CombatKeyframes.luau - keyframes in the client/Abilities/Pose.luau
-     format (one per frame @ 30 fps + one at the EXACT hit time carrying the "Hit" KeyframeMarker +
+     format (one every half frame = 60 per second + one at the EXACT hit time carrying the "Hit" KeyframeMarker +
      one at the exact end time). Pose.Build(name, CombatKeyframes.M1_1.Keyframes) makes the
      KeyframeSequence to upload. Data only - nothing requires it yet.
   2. Game/assets/animations/fbx/<name>.fbx - armature only, bones renamed to the R15 PART names
@@ -60,7 +60,9 @@ def export_luau():
     for act in ACTIONS:
         assign(rig, act)
         end, hit = act.frame_end, act["hit_frame_exact"]
-        times = sorted(set(float(f) for f in range(0, math.floor(end) + 1)) | {hit, end})
+        # every half frame = 60 keys a second, so fast strikes (hit at 0.12 s) stay smooth in Roblox,
+        # which only blends linearly between keys
+        times = sorted(set(i * 0.5 for i in range(0, math.floor(end * 2) + 1)) | {hit, end})
         frames = []
         for t in times:
             set_time(t)
@@ -89,7 +91,7 @@ def export_luau():
     names = ", ".join(a.name for a in ACTIONS)
     src = (
         "--!strict\n"
-        "-- GENERATED - do not edit by hand. TSB-style combat animations (R15), one keyframe per frame @ 30 fps\n"
+        "-- GENERATED - do not edit by hand. TSB-style combat animations (R15), one keyframe every half frame (60 fps)\n"
         "-- plus one at the exact hit time (KeyframeMarker \"Hit\") and one at the exact end.\n"
         "-- Source: Game/assets/animations/combat_anims.blend, made by assets/animations/_src/build_combat_anims.py\n"
         "-- and exported by export_combat_anims.py (change the poses there and rerun both).\n"
