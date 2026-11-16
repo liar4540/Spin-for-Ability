@@ -26,6 +26,7 @@ local ORDER = {
 	"VFXTemplateService",
 	"HitboxService",
 	"StateService",
+	"RagdollService",
 	"CombatService",
 	"TrainingDummyService",
 	"AbilityService",

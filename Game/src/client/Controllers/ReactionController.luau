@@ -6,7 +6,9 @@
 -- and the fighter's CombatState (Stunned / Ragdolled). Every client plays the reaction locally:
 --   Stun → "Stunned" dazed loop + a "Flinch" jolt on each hit
 --   Air  → "Launched" loop (face to the sky, limbs dangling) while hanging after an Uppercut
---   Down → "KnockedDown" loop (flat on the back) after a Downslam / ragdoll
+--   Down → "KnockedDown" loop (flat on the back), only when the physics ragdoll is off
+--          (attribute PhysicsRagdoll false: Combat.Ragdoll.UsePhysics = false or a rig without Motor6Ds)
+--   CombatState Blocking → "Block" guard pose (client/Animations/BlockKeyframes)
 -- When CombatState leaves Stunned/Ragdolled the loop fades out, which reads as getting up.
 -- Keyframes: client/Animations/CombatKeyframes (made in Blender, assets/animations/_src).
 
@@ -19,9 +21,12 @@ local Client = script.Parent.Parent
 local Pose = require(Client:WaitForChild("Abilities"):WaitForChild("Pose"))
 local CombatKeyframes = require(Client:WaitForChild("Animations"):WaitForChild("CombatKeyframes"))
 
+local BlockKeyframes = require(Client:WaitForChild("Animations"):WaitForChild("BlockKeyframes"))
+
 local LOOP_FOR: { [string]: string } = { Stun = "Stunned", Air = "Launched", Down = "KnockedDown" }
-local REACTING_STATES: { [string]: boolean } = { Stunned = true, Ragdolled = true }
+local REACTING_STATES: { [string]: boolean } = { Stunned = true, Ragdolled = true, GuardBroken = true }
 local ANIMATION_IDS = Combat.Animation.Ids :: { [string]: string }
+local MOVES: { [string]: any } = setmetatable({ Block = BlockKeyframes.Block }, { __index = CombatKeyframes }) :: any
 
 type Active = { name: string, track: AnimationTrack }
 
@@ -31,7 +36,7 @@ local active: { [Model]: Active } = setmetatable({}, { __mode = "k" }) :: any
 local flinchTokens: { [Model]: number } = setmetatable({}, { __mode = "k" }) :: any
 
 local function track(model: Model, name: string): AnimationTrack?
-	local move = CombatKeyframes[name]
+	local move = MOVES[name]
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	if not move or not humanoid then
 		return nil
@@ -78,6 +83,12 @@ local function onHit(model: Model)
 		return
 	end
 
+	if loopName == "KnockedDown" and model:GetAttribute("PhysicsRagdoll") == true then
+		-- Real physics ragdoll: the body falls by itself; a lying-down animation would fight it.
+		stop(model)
+		return
+	end
+
 	local current = active[model]
 	if not current or current.name ~= loopName then
 		if current then
@@ -108,7 +119,31 @@ local function watch(instance: Instance)
 	end)
 	model:GetAttributeChangedSignal("CombatState"):Connect(function()
 		local state = model:GetAttribute("CombatState")
-		if type(state) ~= "string" or not REACTING_STATES[state] then
+		if state == "Blocking" then
+			-- Guard pose (forearms crossed) while blocking, on every client.
+			local current = active[model]
+			if not current or current.name ~= "Block" then
+				if current then
+					current.track:Stop(Combat.Animation.ReactionFadeIn)
+				end
+				local t = track(model, "Block")
+				if t then
+					t.Priority = Enum.AnimationPriority.Action2
+					t.Looped = true
+					t:Play(0.1)
+					active[model] = { name = "Block", track = t }
+				end
+			end
+		elseif type(state) ~= "string" or not REACTING_STATES[state] then
+			stop(model)
+		elseif active[model] and active[model].name == "Block" then
+			stop(model) -- hit out of the block (guard break / from behind): the reaction comes with ReactionHit
+		end
+	end)
+	-- Physics ragdoll switched on after a Down reaction started: drop the lying-down loop.
+	model:GetAttributeChangedSignal("PhysicsRagdoll"):Connect(function()
+		local current = active[model]
+		if model:GetAttribute("PhysicsRagdoll") == true and current and current.name == "KnockedDown" then
 			stop(model)
 		end
 	end)

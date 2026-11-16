@@ -24,6 +24,18 @@ local Abilities: { AbilityDef } = {
 		Knockback = 22, -- "small knockback" (vault): about 4 studs on a dummy
 		AnimationId = nil, -- uploaded animation id; nil plays the Studio test animation (client/Abilities/Pose)
 		Icon = Assets.Icons.EmberFist,
+		-- Combat metadata: the first real example of the ability ↔ combat contract.
+		-- After any finisher the target lies in a ragdoll; Ember Fist's stun stands it back up stunned,
+		-- so the M1 string can start again once the finisher's end lag (1.5 s) is over. After a Knockback
+		-- you have to dash in first (and the target can ragdoll-cancel). Once per combo per target.
+		Followup = { "Knockback", "GroundSmash", "Downslam" },
+		AirUsable = false,
+		OnHit = "Stun",
+		-- Long enough to bridge into the next M1 string when cast ~0.4 s after a finisher (the finisher's
+		-- 1.5 s M1 lock must run out while the target is still stunned). Tune in playtests.
+		Stun = 0.8,
+		GuardBreak = false,
+		RecoverySeconds = 0.25,
 		Description = "A fiery punch with a small knockback.",
 	},
 	{
@@ -39,6 +51,8 @@ local Abilities: { AbilityDef } = {
 		ProjectileRadius = 0.6, -- the rock (1.2 across): what stops it at walls and the ground
 		HitboxRadius = 2.5, -- the sphere that finds characters; much bigger than the rock, so near misses hit
 		Knockback = 8,
+		AirUsable = true, -- kept usable in the air like before the combat rules existed (ability team: decide)
+		OnHit = "None",
 		AnimationId = nil, -- uploaded animation id; nil plays the Studio test animation (client/Abilities/Pose)
 		Description = "Throws a quick rock that shatters into chips on hit.",
 	},
@@ -53,6 +67,7 @@ local Abilities: { AbilityDef } = {
 		WindupSeconds = 0.2, -- the animation's "DashStart" marker (frame 6 @ 30 fps)
 		MaxDashStuds = 32, -- the server pulls a player back if one dash moves them further than this
 		DashWindowSeconds = 1, -- how long after the key press the server watches the dash
+		AirUsable = true, -- kept usable in the air like before the combat rules existed (ability team: decide)
 		AnimationId = "rbxassetid://130755455737261", -- GaleStep_Dash (Game/assets/gale_step.blend)
 		Description = "An extremely fast dash with wind trails.",
 	},

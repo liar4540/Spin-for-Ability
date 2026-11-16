@@ -2,6 +2,8 @@
 -- AbilityService: storage, equip slots and using abilities (vault: 03 Systems → Abilities & Equip).
 -- Status: storage + equip (EquipAbility / UnequipAbility) and UseAbility for melee and
 -- projectile abilities, and dashes (Movement: moved by the client, distance-checked here).
+-- Every use goes through CombatService: BeginCast (state, AirUsable) → wind-up → IsCastCurrent
+-- (interrupted casts never land) → AbilityHit (block, scaling, once-per-combo, OnHit…).
 -- AoE / Defense use come with those abilities. Delete/Lock come
 -- with the full Inventory screen.
 
@@ -17,7 +19,6 @@ local Projectile = require(Shared:WaitForChild("Projectile"))
 local Types = require(Shared:WaitForChild("Types"))
 local Economy = require(Config:WaitForChild("Economy"))
 local Abilities = require(Config:WaitForChild("Abilities"))
-local Rarities = require(Config:WaitForChild("Rarities"))
 
 local DataService = require(script.Parent.DataService)
 local MonetizationService = require(script.Parent.MonetizationService)
@@ -49,10 +50,9 @@ end
 
 -- [player][abilityId] = server clock when it can be used again
 local readyAt: { [Player]: { [string]: number } } = {}
--- [player] = the dash being watched (a newer dash replaces it)
-local dashWatches: { [Player]: RBXScriptConnection } = {}
 local abilityUsed: RemoteEvent
 local abilityHit: RemoteEvent
+local combatResult: RemoteEvent
 
 local function storageCount(data: DataService.PlayerData): number
 	local count = 0
@@ -154,27 +154,21 @@ end
 
 -- ===== Using abilities =====
 
-local function useMelee(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3)
+local function useMelee(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3, castId: number)
 	-- The hit lands when the animation's punch does, not when the key was pressed.
 	task.wait(def.WindupSeconds or 0)
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 or not root.Parent then
+	-- Stunned, ragdolled, dead or respawned during the wind-up → the cast never lands.
+	if not CombatService.IsCastCurrent(player, castId) or not root.Parent then
 		return
 	end
-
-	local power = Rarities.Defs[def.Rarity].Power
-	local damage = def.Damage * power
+	-- One query, so every target is hit at most once per cast. Damage, block, scaling, stun and
+	-- once-per-combo all come from the shared pipeline (CombatService.AbilityHit).
 	local targets = HitboxService.InFront(character, root, aim, def.Range, def.HitboxWidth or 5, MELEE_MAX_TARGETS)
 	for _, target in targets do
-		local targetRoot = target.Parent and target.Parent:FindFirstChild("HumanoidRootPart") :: BasePart?
-		local knockback = Vector3.zero
-		if targetRoot and def.Knockback then
-			local away = targetRoot.Position - root.Position
-			away = Vector3.new(away.X, 0, away.Z)
-			away = if away.Magnitude > 0.01 then away.Unit else Vector3.new(aim.X, 0, aim.Z).Unit
-			knockback = away * def.Knockback + Vector3.new(0, def.Knockback * 0.4, 0)
+		local model = target.Parent
+		if model and model:IsA("Model") then
+			CombatService.AbilityHit(player, model, def, castId)
 		end
-		CombatService.DealDamage(player, target, damage, knockback, def.Id)
 	end
 end
 
@@ -182,10 +176,10 @@ end
 -- characters, a small one the size of the projectile for walls and the ground). The first thing it
 -- touches is the hit: damage (characters only). Every client then plays the impact (AbilityHit),
 -- also when it flies its full range without touching anything (it shatters in the air there).
-local function useProjectile(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3)
+-- Once thrown, it flies on even if the thrower gets hit; only the wind-up can be interrupted.
+local function useProjectile(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3, castId: number)
 	task.wait(def.WindupSeconds or 0)
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 or not root.Parent then
+	if not CombatService.IsCastCurrent(player, castId) or not root.Parent then
 		return
 	end
 
@@ -219,10 +213,14 @@ local function useProjectile(player: Player, character: Model, root: BasePart, d
 
 	if hit then
 		local target = hit.Humanoid
-		if target and target.Health > 0 then
-			local power = Rarities.Defs[def.Rarity].Power
-			local knockback = flat * (def.Knockback or 0) + Vector3.new(0, (def.Knockback or 0) * 0.4, 0)
-			CombatService.DealDamage(player, target, def.Damage * power, knockback, def.Id)
+		local model = target and target.Parent
+		if target and target.Health > 0 and model and model:IsA("Model") then
+			-- Pushed along the flight path; blocked from the side the projectile came from.
+			local kb = def.Knockback or 0
+			CombatService.AbilityHit(player, model, def, castId, {
+				origin = hit.Position - flat * 2,
+				worldLaunch = if kb > 0 then flat * kb + Vector3.new(0, kb * 0.4, 0) else nil,
+			})
 		end
 		abilityHit:FireAllClients(character, def.Id, hit.Position, hit.Normal)
 	else
@@ -230,40 +228,9 @@ local function useProjectile(player: Player, character: Model, root: BasePart, d
 	end
 end
 
--- Dashes are moved by the dashing player's own client (smooth on their screen). The server only
--- watches: for `seconds` after the press, the character may move at most maxStuds sideways from
--- where it was. Further than that, it's pulled back onto that circle and stopped there.
-local function watchDash(player: Player, root: BasePart, maxStuds: number, seconds: number)
-	local previous = dashWatches[player]
-	if previous then
-		previous:Disconnect()
-	end
-	local start = root.Position
-	local endsAt = os.clock() + seconds
-	local watch: RBXScriptConnection
-	watch = RunService.Heartbeat:Connect(function()
-		if os.clock() > endsAt or not root.Parent then
-			watch:Disconnect()
-			if dashWatches[player] == watch then
-				dashWatches[player] = nil
-			end
-			return
-		end
-		local moved = root.Position - start
-		local flat = Vector3.new(moved.X, 0, moved.Z)
-		if flat.Magnitude > maxStuds then
-			local allowed = start + flat.Unit * maxStuds
-			local rotation = root.CFrame - root.Position
-			root.CFrame = rotation + Vector3.new(allowed.X, root.Position.Y, allowed.Z)
-			root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
-		end
-	end)
-	dashWatches[player] = watch
-end
-
 -- The dash itself already happened on the player's client; check it stays within MaxDashStuds.
 local function useDash(player: Player, root: BasePart, def: AbilityDef)
-	watchDash(player, root, def.MaxDashStuds or def.Range + 2, def.DashWindowSeconds or 1)
+	CombatService.WatchMovement(player, root, def.MaxDashStuds or def.Range + 2, def.DashWindowSeconds or 1)
 end
 
 local function onUseAbility(player: Player, slot: number, aim: Vector3)
@@ -288,19 +255,32 @@ local function onUseAbility(player: Player, slot: number, aim: Vector3)
 		return
 	end
 
-	-- Cooldown on the server clock.
 	local now = os.clock()
 	local perPlayer = readyAt[player]
 	if not perPlayer then
 		perPlayer = {}
 		readyAt[player] = perPlayer
 	end
-	if now < (perPlayer[def.Id] or 0) - LATENCY_ALLOWANCE then
+	local function reject(reason: string)
+		-- Tell the client so it puts its local cooldown back (it started it optimistically).
+		combatResult:FireClient(player, "Ability", slot, false, math.max(0, (perPlayer[def.Id] or 0) - now), reason)
 		if def.Type == "Movement" then
-			-- Still on cooldown: no dash allowed. Its client may have dashed anyway (a cheat, or a
-			-- clock that drifted); only normal walking is let through.
-			watchDash(player, root, humanoid.WalkSpeed * (def.DashWindowSeconds or 1) + 2, def.DashWindowSeconds or 1)
+			-- Its client may have dashed anyway (a cheat, or a clock that drifted); only normal walking
+			-- is let through.
+			CombatService.WatchMovement(player, root, humanoid.WalkSpeed * (def.DashWindowSeconds or 1) + 2, def.DashWindowSeconds or 1)
 		end
+	end
+
+	-- Cooldown on the server clock.
+	if now < (perPlayer[def.Id] or 0) - LATENCY_ALLOWANCE then
+		reject("Cooldown")
+		return
+	end
+	-- Combat state: not stunned / ragdolled / blocking / mid-cast / in an M1's startup, and
+	-- AirUsable if in the air. This also starts the cast (its id cancels with interruptions).
+	local castId = CombatService.BeginCast(player, def)
+	if not castId then
+		reject("State")
 		return
 	end
 	perPlayer[def.Id] = now + def.Cooldown
@@ -313,9 +293,9 @@ local function onUseAbility(player: Player, slot: number, aim: Vector3)
 	end
 
 	if def.Type == "Melee" then
-		useMelee(player, character, root, def, aim)
+		useMelee(player, character, root, def, aim, castId)
 	elseif def.Type == "Projectile" then
-		useProjectile(player, character, root, def, aim)
+		useProjectile(player, character, root, def, aim, castId)
 	elseif def.Type == "Movement" then
 		useDash(player, root, def)
 	end
@@ -359,6 +339,7 @@ end
 function AbilityService.Init()
 	abilityUsed = Remotes.Event("AbilityUsed")
 	abilityHit = Remotes.Event("AbilityHit")
+	combatResult = Remotes.Event("CombatResult")
 end
 
 function AbilityService.Start()
@@ -387,11 +368,6 @@ function AbilityService.Start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		readyAt[player] = nil
-		local watch = dashWatches[player]
-		if watch then
-			watch:Disconnect()
-			dashWatches[player] = nil
-		end
 	end)
 end
 

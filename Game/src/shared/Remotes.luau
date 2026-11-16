@@ -15,14 +15,16 @@ local EVENTS = {
 	"M1Attack",
 	"SetBlock",
 	"Dash",
+	"RagdollCancel",
 	"UseAbility",
 	"BuyPotion",
 	"RequestPurchase",
 	"ClaimPlaytimeReward",
 	-- Server → Client
 	"DataUpdated",
-	"HitEffect",
+	"HitEffect", -- (target, abilityId, position, kind: "Hit" | "Blocked" | "GuardBreak" | "Escape", attacker?)
 	"Knockback",
+	"CombatResult", -- server's answer to the sender's own combat input: (kind, ...) — see CombatService
 	"KillFeed",
 	"AbilityUsed",
 	"AbilityHit", -- a projectile hit something: (attacker character, abilityId, position, normal)

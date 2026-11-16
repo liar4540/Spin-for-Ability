@@ -144,6 +144,11 @@ function Knockback.Apply(root: BasePart, velocity: Vector3, seconds: number?, ho
 	end)
 end
 
+-- Ends a running Step (a rejected dash, an interrupted swing).
+function Knockback.StopStep(root: BasePart)
+	stopStep(root)
+end
+
 -- Ends any push or hover right away (the character falls normally).
 function Knockback.Release(root: BasePart)
 	motions[root] = nil
