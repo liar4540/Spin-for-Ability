@@ -14,6 +14,12 @@ export type Rarity =
 
 export type AbilityType = "Melee" | "Projectile" | "AoE" | "Movement" | "Defense"
 
+-- What a hit does to the target (vault: 12 Combat System → Abilities as combo extenders).
+--   Stun / Pull → the M1 string can restart. Ragdoll / Launch → the combo ends unless another ability follows.
+export type OnHit = "Stun" | "Ragdoll" | "Launch" | "Pull" | "None"
+-- The M1 finishers an ability is designed to follow. Descriptive only: it never makes a hit land.
+export type Finisher = "Knockback" | "GroundSmash" | "Downslam"
+
 export type RarityDef = {
 	Name: Rarity,
 	Rank: number, -- 1 = Common ... 9 = Secret (higher = rarer)
@@ -57,6 +63,17 @@ export type AbilityDef = {
 	DashWindowSeconds: number?, -- seconds after the key press the server watches the dash
 	AnimationId: string?, -- uploaded animation ("rbxassetid://..."); nil = Studio-only test animation
 	Icon: string?, -- image id shown on the hotbar and inventory cards (Config/Assets)
+	-- Combat metadata (filled in by the ability team, read by CombatService). Missing = the default in
+	-- Config/Combat → AbilityDefaults.
+	Followup: { Finisher }?, -- intended combo routes (design + UI hints only, never guarantees a hit)
+	AirUsable: boolean?, -- can be cast in the air (the server checks airborne-ness itself)
+	OnHit: OnHit?, -- default "None"
+	GuardBreak: boolean?, -- goes through block
+	GuardDamage: number?, -- guard points taken when blocked (default 2; heavy skills 3)
+	Stun: number?, -- seconds, for OnHit Stun / Launch / Pull
+	RagdollSeconds: number?, -- for OnHit Ragdoll
+	RagdollCancellable: boolean?, -- for OnHit Ragdoll; default true
+	RecoverySeconds: number?, -- caster stays busy this long after the wind-up (default 0.25)
 }
 
 -- One row of the odds screen: the real chance of one ability.

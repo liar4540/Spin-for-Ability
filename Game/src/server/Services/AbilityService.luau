@@ -2,6 +2,8 @@
 -- AbilityService: storage, equip slots and using abilities (vault: 03 Systems → Abilities & Equip).
 -- Status: storage + equip (EquipAbility / UnequipAbility) and UseAbility for melee and
 -- projectile abilities, and dashes (Movement: moved by the client, distance-checked here).
+-- Every use goes through CombatService: BeginCast (state, AirUsable) → wind-up → IsCastCurrent
+-- (interrupted casts never land) → AbilityHit (block, scaling, once-per-combo, OnHit…).
 -- AoE / Defense use come with those abilities. Delete/Lock come
 -- with the full Inventory screen.
 
@@ -17,7 +19,6 @@ local Projectile = require(Shared:WaitForChild("Projectile"))
 local Types = require(Shared:WaitForChild("Types"))
 local Economy = require(Config:WaitForChild("Economy"))
 local Abilities = require(Config:WaitForChild("Abilities"))
-local Rarities = require(Config:WaitForChild("Rarities"))
 
 local DataService = require(script.Parent.DataService)
 local MonetizationService = require(script.Parent.MonetizationService)
@@ -58,15 +59,10 @@ end
 
 -- [player][abilityId] = server clock when it can be used again
 local readyAt: { [Player]: { [string]: number } } = {}
--- [player][abilityId] = server clock of the last request (MinRequestSeconds), accepted or not
-local lastRequest: { [Player]: { [string]: number } } = {}
 -- [player] = the dash being watched (a newer dash replaces it)
 local dashWatches: { [Player]: RBXScriptConnection } = {}
 local abilityUsed: RemoteEvent
 local abilityHit: RemoteEvent
-local abilityImpact: RemoteEvent
-local abilityLaunch: RemoteEvent
-local abilityStrike: RemoteEvent
 
 local function storageCount(data: DataService.PlayerData): number
 	local count = 0
@@ -168,22 +164,17 @@ end
 
 -- ===== Using abilities =====
 
-local function useMelee(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3)
+local function useMelee(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3, castId: number)
 	-- The hit lands when the animation's punch does, not when the key was pressed.
 	task.wait(def.WindupSeconds or 0)
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 or not root.Parent then
+	-- Stunned, ragdolled, dead or respawned during the wind-up → the cast never lands.
+	if not CombatService.IsCastCurrent(player, castId) or not root.Parent then
 		return
 	end
 
 	local power = Rarities.Defs[def.Rarity].Power
 	local damage = def.Damage * power
-	-- An exact box when the ability sets a height (Frost Jab), else the older taller box.
-	-- Each target is in the list once, so it's hit at most once per cast.
-	local targets = if def.HitboxHeight
-		then HitboxService.InBox(character, root, aim, def.HitboxWidth or 5, def.HitboxHeight, def.Range, MELEE_MAX_TARGETS)
-		else HitboxService.InFront(character, root, aim, def.Range, def.HitboxWidth or 5, MELEE_MAX_TARGETS)
-	local impacts: { { Target: Model, Position: Vector3 } } = {}
+	local targets = HitboxService.InFront(character, root, aim, def.Range, def.HitboxWidth or 5, MELEE_MAX_TARGETS)
 	for _, target in targets do
 		local targetRoot = target.Parent and target.Parent:FindFirstChild("HumanoidRootPart") :: BasePart?
 		local knockback = Vector3.zero
@@ -194,21 +185,6 @@ local function useMelee(player: Player, character: Model, root: BasePart, def: A
 			knockback = away * def.Knockback + Vector3.new(0, def.Knockback * 0.4, 0)
 		end
 		CombatService.DealDamage(player, target, damage, knockback, def.Id)
-		local model = target.Parent
-		if model and model:IsA("Model") then
-			if def.SlowMultiplier and def.SlowSeconds then
-				StateService.ApplySlow(model, def.SlowMultiplier, def.SlowSeconds)
-			end
-			if targetRoot then
-				table.insert(impacts, { Target = model, Position = targetRoot.Position })
-			end
-		end
-	end
-	-- Every client plays the on-hit VFX (the attacker played the startup VFX on its own already).
-	-- Only server-owned characters and positions are sent, plus the server time of the hit, so a
-	-- client that gets this late skips effects that have already finished.
-	if #impacts > 0 then
-		abilityImpact:FireAllClients(character, def.Id, impacts, workspace:GetServerTimeNow())
 	end
 end
 
@@ -216,10 +192,10 @@ end
 -- characters, a small one the size of the projectile for walls and the ground). The first thing it
 -- touches is the hit: damage (characters only). Every client then plays the impact (AbilityHit),
 -- also when it flies its full range without touching anything (it shatters in the air there).
-local function useProjectile(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3)
+-- Once thrown, it flies on even if the thrower gets hit; only the wind-up can be interrupted.
+local function useProjectile(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3, castId: number)
 	task.wait(def.WindupSeconds or 0)
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 or not root.Parent then
+	if not CombatService.IsCastCurrent(player, castId) or not root.Parent then
 		return
 	end
 
@@ -253,119 +229,19 @@ local function useProjectile(player: Player, character: Model, root: BasePart, d
 
 	if hit then
 		local target = hit.Humanoid
-		if target and target.Health > 0 then
-			local power = Rarities.Defs[def.Rarity].Power
-			local knockback = flat * (def.Knockback or 0) + Vector3.new(0, (def.Knockback or 0) * 0.4, 0)
-			CombatService.DealDamage(player, target, def.Damage * power, knockback, def.Id)
+		local model = target and target.Parent
+		if target and target.Health > 0 and model and model:IsA("Model") then
+			-- Pushed along the flight path; blocked from the side the projectile came from.
+			local kb = def.Knockback or 0
+			CombatService.AbilityHit(player, model, def, castId, {
+				origin = hit.Position - flat * 2,
+				worldLaunch = if kb > 0 then flat * kb + Vector3.new(0, kb * 0.4, 0) else nil,
+			})
 		end
 		abilityHit:FireAllClients(character, def.Id, hit.Position, hit.Normal)
 	else
 		abilityHit:FireAllClients(character, def.Id, position, -flat) -- end of its range
 	end
-end
-
-export type ClockShot = {
-	Hit: boolean, -- it touched something (a character or the world) before its full range
-	Position: Vector3, -- where it stopped
-	Target: Model?, -- the character hit, if any
-	Travelled: number, -- studs from the origin
-}
-
--- A projectile flown on the SERVER CLOCK (Thunder Lance). Its front is at
---     origin + direction * speed * (now - start)        (closed form: no drift, any frame rate)
--- and every Heartbeat sweeps from where it was to there with Projectile.Step (the big HitboxRadius
--- sphere finds characters, the small ProjectileRadius one walls and the ground; the thrower and their
--- accessories are never hit). Before that, one sweep from the thrower's eyes to the spear's tip, so a
--- target or a wall between them is hit first (no throwing through a wall you're hugging).
--- There is no server-side part. The other clients get AbilityLaunch (origin, direction, start, seed)
--- and draw their own spear from it; the thrower's client drew its own on the Release marker.
--- The first thing it touches is the hit: damage once (characters only), then AbilityHit to everyone
--- with the exact point, the target, the server time and the seed (so every client draws the same
--- impact bolts). At full range it just fades out: no AbilityHit. A character hit by a SkyStrike
--- ability also gets AbilityStrike right after (skyStrike).
--- A character hit by a SkyStrike projectile: a lightning strike comes down on it from the sky. The
--- server only decides where (the ground straight below the target's root, or the target itself if
--- there's no ground within STRIKE_GROUND_DROP) and tells everyone at once, so a target that dies,
--- resets or leaves before the strike lands still gets it at that spot. Damage (StrikeDamage, final,
--- no rarity Power) lands STRIKE_DELAY later, only if set above 0 and the target is still alive.
-local function skyStrike(player: Player, character: Model, def: AbilityDef, target: Humanoid, filters: Projectile.Filters)
-	local model = target.Parent :: Model
-	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart?
-	local from = if root then root.Position else model:GetPivot().Position
-	local ground = workspace:Raycast(from, Vector3.new(0, -STRIKE_GROUND_DROP, 0), filters.World)
-	local groundPos = if ground then ground.Position else from
-	abilityStrike:FireAllClients(character, def.Id, model, groundPos, workspace:GetServerTimeNow(), seeds:NextInteger(1, 2147483646))
-	local damage = def.StrikeDamage or 0
-	if damage > 0 then
-		task.delay(STRIKE_DELAY, function()
-			if target.Parent and target.Health > 0 then
-				CombatService.DealDamage(player, target, damage, Vector3.zero, def.Id)
-			end
-		end)
-	end
-end
-
--- override (Studio QA hook only): fly from a given origin / direction, without the wind-up.
-local function useClockProjectile(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3,
-	override: { Origin: Vector3, Direction: Vector3 }?): ClockShot?
-	if not override then
-		task.wait(def.WindupSeconds or 0)
-	end
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 or not root.Parent then
-		return nil
-	end
-
-	local flat = if override then override.Direction.Unit else Vector3.new(aim.X, 0, aim.Z).Unit
-	local right = flat:Cross(Vector3.yAxis)
-	local offset = def.ThrowOffset or THROW_OFFSET
-	local hand = root.Position + right * offset.X + Vector3.yAxis * offset.Y + flat * offset.Z
-	local origin = if override then override.Origin else hand + flat * (def.ProjectileLead or 0)
-	local head = character:FindFirstChild("Head") :: BasePart?
-	local eye = if head then head.Position else root.Position + Vector3.new(0, 1.5, 0)
-	local speed = def.ProjectileSpeed or 80
-	local hitboxRadius = def.HitboxRadius or 0.5
-	local bodyRadius = def.ProjectileRadius or 0.5
-	local filters = Projectile.Filters(character)
-	local seed = seeds:NextInteger(1, 2147483646)
-	local start = workspace:GetServerTimeNow()
-
-	for _, other in Players:GetPlayers() do
-		local otherRoot = other.Character and other.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if other ~= player and otherRoot and (otherRoot.Position - origin).Magnitude <= LAUNCH_RADIUS + def.Range then
-			abilityLaunch:FireClient(other, character, def.Id, origin, flat, start, seed)
-		end
-	end
-
-	local hit = if override then nil else Projectile.Step(eye, origin - eye, hitboxRadius, bodyRadius, filters)
-	local last = origin
-	local travelled = 0
-	while not hit do
-		travelled = math.min(speed * (workspace:GetServerTimeNow() - start), def.Range)
-		local now = origin + flat * travelled
-		hit = Projectile.Step(last, now - last, hitboxRadius, bodyRadius, filters)
-		last = now
-		if hit or travelled >= def.Range then
-			break
-		end
-		RunService.Heartbeat:Wait()
-	end
-
-	if not hit then
-		return { Hit = false, Position = last, Target = nil, Travelled = travelled }
-	end
-	local target = hit.Humanoid
-	local model = target and target.Parent :: Model?
-	if target and target.Health > 0 then
-		local power = Rarities.Defs[def.Rarity].Power
-		local knockback = flat * (def.Knockback or 0) + Vector3.new(0, (def.Knockback or 0) * 0.4, 0)
-		CombatService.DealDamage(player, target, def.Damage * power, knockback, def.Id)
-	end
-	abilityHit:FireAllClients(character, def.Id, hit.Position, hit.Normal, model, workspace:GetServerTimeNow(), seed)
-	if def.SkyStrike and target then
-		skyStrike(player, character, def, target, filters) -- characters only: never a wall, the floor or full range
-	end
-	return { Hit = true, Position = hit.Position, Target = model, Travelled = (hit.Position - origin).Magnitude }
 end
 
 -- Dashes are moved by the dashing player's own client (smooth on their screen). The server only
@@ -401,7 +277,7 @@ end
 
 -- The dash itself already happened on the player's client; check it stays within MaxDashStuds.
 local function useDash(player: Player, root: BasePart, def: AbilityDef)
-	watchDash(player, root, def.MaxDashStuds or def.Range + 2, def.DashWindowSeconds or 1)
+	CombatService.WatchMovement(player, root, def.MaxDashStuds or def.Range + 2, def.DashWindowSeconds or 1)
 end
 
 local function onUseAbility(player: Player, slot: number, aim: Vector3)
@@ -442,17 +318,32 @@ local function onUseAbility(player: Player, slot: number, aim: Vector3)
 	end
 
 	-- Cooldown on the server clock.
+	local now = os.clock()
 	local perPlayer = readyAt[player]
 	if not perPlayer then
 		perPlayer = {}
 		readyAt[player] = perPlayer
 	end
-	if now < (perPlayer[def.Id] or 0) - LATENCY_ALLOWANCE then
+	local function reject(reason: string)
+		-- Tell the client so it puts its local cooldown back (it started it optimistically).
+		combatResult:FireClient(player, "Ability", slot, false, math.max(0, (perPlayer[def.Id] or 0) - now), reason)
 		if def.Type == "Movement" then
-			-- Still on cooldown: no dash allowed. Its client may have dashed anyway (a cheat, or a
-			-- clock that drifted); only normal walking is let through.
-			watchDash(player, root, humanoid.WalkSpeed * (def.DashWindowSeconds or 1) + 2, def.DashWindowSeconds or 1)
+			-- Its client may have dashed anyway (a cheat, or a clock that drifted); only normal walking
+			-- is let through.
+			CombatService.WatchMovement(player, root, humanoid.WalkSpeed * (def.DashWindowSeconds or 1) + 2, def.DashWindowSeconds or 1)
 		end
+	end
+
+	-- Cooldown on the server clock.
+	if now < (perPlayer[def.Id] or 0) - LATENCY_ALLOWANCE then
+		reject("Cooldown")
+		return
+	end
+	-- Combat state: not stunned / ragdolled / blocking / mid-cast / in an M1's startup, and
+	-- AirUsable if in the air. This also starts the cast (its id cancels with interruptions).
+	local castId = CombatService.BeginCast(player, def)
+	if not castId then
+		reject("State")
 		return
 	end
 	perPlayer[def.Id] = now + def.Cooldown
@@ -466,10 +357,8 @@ local function onUseAbility(player: Player, slot: number, aim: Vector3)
 
 	if def.Type == "Melee" then
 		useMelee(player, character, root, def, aim)
-	elseif def.Type == "Projectile" and def.ServerClock then
-		useClockProjectile(player, character, root, def, aim)
 	elseif def.Type == "Projectile" then
-		useProjectile(player, character, root, def, aim)
+		useProjectile(player, character, root, def, aim, castId)
 	elseif def.Type == "Movement" then
 		useDash(player, root, def)
 	end
@@ -513,9 +402,6 @@ end
 function AbilityService.Init()
 	abilityUsed = Remotes.Event("AbilityUsed")
 	abilityHit = Remotes.Event("AbilityHit")
-	abilityImpact = Remotes.Event("AbilityImpact")
-	abilityLaunch = Remotes.Event("AbilityLaunch")
-	abilityStrike = Remotes.Event("AbilityStrike")
 end
 
 function AbilityService.Start()
@@ -572,7 +458,6 @@ function AbilityService.Start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		readyAt[player] = nil
-		lastRequest[player] = nil
 		local watch = dashWatches[player]
 		if watch then
 			watch:Disconnect()

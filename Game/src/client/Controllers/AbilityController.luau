@@ -60,6 +60,9 @@ local EFFECTS: { [string]: Effect } = {
 
 -- After using any ability, others can't start until this ends (so animations don't overlap).
 local BUSY_SECONDS = 0.5
+-- Combat states that can't use abilities (mirrors the server's StateService rules).
+local BLOCKED_STATES: { [string]: boolean } =
+	{ Stunned = true, Ragdolled = true, GuardBroken = true, Blocking = true, Casting = true }
 local SLOT_SIZE = 68
 local SLOT_GAP = 10
 
@@ -261,6 +264,13 @@ function AbilityController.Use(slot: number)
 		nope(slot)
 		return
 	end
+	-- Same state rules as the server (StateService), so a stunned / ragdolled / blocking player
+	-- doesn't play an ability the server will refuse. The server still decides.
+	local state = character:GetAttribute("CombatState")
+	if type(state) == "string" and BLOCKED_STATES[state] then
+		nope(slot)
+		return
+	end
 
 	readyAt[def.Id] = now + def.Cooldown
 	busyUntil = now + BUSY_SECONDS
@@ -302,6 +312,18 @@ function AbilityController.Start()
 		local slot = KEYS[input.KeyCode]
 		if slot then
 			AbilityController.Use(slot)
+		end
+	end)
+
+	-- The server refused a cast (state or cooldown): put the local cooldown back to the server's.
+	Remotes.Event("CombatResult").OnClientEvent:Connect(function(kind: string, slot: any, accepted: any, readyIn: any)
+		if kind ~= "Ability" or accepted ~= false or type(slot) ~= "number" then
+			return
+		end
+		local def = abilityInSlot(slot)
+		if def then
+			readyAt[def.Id] = os.clock() + (if type(readyIn) == "number" then readyIn else 0)
+			busyUntil = 0
 		end
 	end)
 
