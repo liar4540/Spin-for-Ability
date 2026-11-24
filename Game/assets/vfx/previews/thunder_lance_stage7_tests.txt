@@ -29,7 +29,21 @@ client (real hotbar cast, key 4, same spot and direction; the thrower's own spea
 Image: thunder_lance_stage7_wall_range.png (bottom).
 
 5. TWO CLIENTS see the same impact position
-PENDING: needs a Studio local server with 2 players (Test > Clients and Servers), which scripts can't start.
+Studio Test > Clients and Servers, 2 players (2026-11-10). Each client ran a listener (play session only) on
+AbilityHit / AbilityStrike and on its own workspace.ClientVFX folders, logging positions on the server clock.
+Server (hook, as Player1): origin (36, 3.44, -14) along -X at the Training Dummy (6, 3.19, -14); both players
+parked > 10 studs off the line.
+server:  Hit=true Target=Training Dummy stop (8.010, 3.440, -13.683) travelled 27.99  hp 200.00 -> 182.00
+Player1 (thrower):  AbilityHit pos (8.010, 3.440, -13.683) normal (0.992, 0, -0.127)  at +0.196 s
+                    VFX ThunderLanceHit: Sparks (8.010, 3.440, -13.683), Ring (8.060, 3.440, -13.690)
+                    AbilityStrike ground (6.000, 0.000, -14.000)
+Player2 (watcher):  AbilityHit pos (8.010, 3.440, -13.683) normal (0.992, 0, -0.127)  at +0.182 s
+                    VFX ThunderLanceHit: Sparks (8.010, 3.440, -13.683), Ring (8.060, 3.440, -13.690)
+                    AbilityStrike ground (6.000, 0.000, -14.000)
+                    also rendered the flying spear (ThunderLance_Player1) from AbilityLaunch.
+-> both clients play the impact and the sky strike at exactly the same positions (difference 0.000 studs).
+   Player1 got no flight spear here because the hook skips the wind-up and the server leaves the caster out
+   of AbilityLaunch (the thrower's own client starts its spear on the Release marker of a real cast).
 
 6. CLEANUP (client, 20 real hotbar casts in a row, key 4, 6.4 s apart, each hitting the dummy)
 Workspace descendants counted on the frame before each cast and 3 s after it; bolt pool = Beams on

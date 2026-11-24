@@ -31,9 +31,41 @@ Scripts: `assets/vfx/_src/*frost_jab*.py`, `tools/build_frost_jab_templates.luau
 - **The first VFX cast of a Play session creates `workspace.ClientVFX`.** Measure the cleanup count (descendants before vs 3 s after) from the second cast.
 - **The 3 s cooldown hides the "no stacking" case.** One player can't re-hit inside a 1.5 s slow, so test it with the server hook.
 
+## Thunder Lance (Rare projectile, 2026-11-10)
+
+Preset: `Game/presets/lightning_projectile.lua` (the whole CONFIG, strike included). Code: `src/client/Abilities/ThunderLanceVFX.luau`, `src/client/VFX/LightningBolt.luau`, `AbilityService.useClockProjectile`, `shared/Projectile` (`Step`), remotes `AbilityLaunch` / `AbilityHit` / `AbilityStrike`.
+Scripts: `assets/vfx/_src/*thunder_lance*.py`, `tools/build_thunder_lance_templates.luau`. Tests: `assets/vfx/previews/thunder_lance_stage7_tests.txt`, `thunder_lance_stage7b_tests.txt`.
+
+### What worked
+
+- **The server flies the spear on its clock, with no part.** Its front is `origin + direction * speed * (now - start)`, swept every Heartbeat with `Projectile.Step`. Other clients get `AbilityLaunch(origin, direction, serverTime, seed)` and draw their own spear, so a late client starts further along instead of stuttering. Two clients drew the impact at the same point to 0.000 studs.
+- **Two sweep sizes.** A 2.5-stud sphere finds characters, and the spear's own 0.175 stops it at walls and the floor. Measured with real clearance (bisected `Spherecast`), it hits a dummy 2 studs off the line and misses one 3 studs off. That fixes Pebble Toss's tiny-hitbox misses without the spear stopping in mid-air near walls.
+- **One sweep from the eyes to the spear's tip before the flight.** A target or wall between the thrower and the tip is hit first, so you can't throw through a wall you're hugging.
+- **The thrower's own spear starts on the "Release" marker, and the server leaves the caster out of `AbilityLaunch`.** There's no wait for the round trip, and no second spear.
+- **`WindupSeconds` = the Release frame (15/30), and `ThrowOffset` is read from the hand in the .blend on that frame.** The server's spawn point and the client's spear in the hand line up with no hand-tuning.
+- **The seed travels in every payload** (`AbilityLaunch`, `AbilityHit`, `AbilityStrike`). Impact bolts and arcs come out the same on every screen.
+- **One PointLight per shot, moved** from the release flash to the spear's glow to the impact pulse (Vault), never three lights.
+- **The impact flash 1 frame late.** The contact frame shows first, and the star after it reads as a hit, not a pop.
+- **Ribbons and the ring use an emissive `SurfaceAppearance`, not Neon.** Neon ignores textures, so it dropped the fade at the ribbon ends. The texture maps can only be set from Studio or a plugin, so these templates are saved in the place (`ReplicatedStorage.VFX.ThunderLance`); colour, emission, transparency and size stay scriptable.
+- **The trail bolt rides the spear** (`LightningBolt.Shift` by the spear's movement since the redraw). Left in place, it trailed behind as a separate streak (stage 7 fix 1).
+- **Arcs on the target jump between neighbouring limbs, with their ends pushed 0.7 studs out from the body** (`ARC_PAIRS`, `ARC_OUTSIDE`). Between random limbs they crossed through the torso and hid (stage 7 fix 2).
+- **All bolt Beams on one holder part, pooled.** 20 casts in a row: Workspace descendants +0 on every cast, and the pool stayed at 30.
+- **A real two-client test without screenshots.** With Test > Clients and Servers, each window is its own MCP studio (server + one per player). Put a listener on each client for `AbilityHit` / `AbilityStrike` and for new `workspace.ClientVFX` folders, logging part positions on the server clock, then fire one throw from the server hook.
+
+### What to avoid
+
+- **A small scorch.** At 4 studs it hid under the target's own shadow, and one soft decal read too faint on the grey floor. Use 6 studs and 2 stacked decals (stage 7 fix 3).
+- **`require()` from the Studio MCP to drive a test.** It gives a fresh copy of the module with no game state. Use the real remotes, keys and chat commands instead.
+- **`WaitForChild("ClientVFX")` in a test listener.** The folder is only made by the first effect, so the call blocks and the MCP call never returns. Watch `workspace.DescendantAdded` instead.
+- **Starting the two-client test before every window has loaded.** At first only the server window was connected, with 0 players. Check that the studio list shows 3 entries (server + 2 clients) before testing.
+- **Reading the hook's throw as "the thrower sees no spear".** The hook skips the wind-up and the Release marker, so only the other clients draw the flight. A real cast is needed to see the thrower's own spear.
+- **Trusting every `PrintWindow` grab.** Some come back with a black viewport. Filter frames by mean brightness, and start a capture burst in the background before triggering, because tool latency is seconds.
+- **`/vfxtest` with your character near the throw line.** It picks the dummy nearest YOUR character, so park the character away from the line first.
+- Good to know: decals still render on a part with `Transparency` 1, so a scorch or crater plate can be fully invisible.
+
 ## Thunder Lance stage 7B: sky lightning strike on a character hit (2026-11-08)
 
-The spear's full notes come with section 9. This part covers the strike add-on (`Prompts/thunder_lance_lighting_strike_prompt`).
+The add-on from `Prompts/thunder_lance_lighting_strike_prompt`; the spear itself is above.
 Preset keys: `Game/presets/lightning_projectile.lua` (`STRIKE` block). Code: `src/client/Abilities/ThunderLanceVFX.luau` (`ThunderLanceVFX.Strike`), `src/client/VFX/LightningBolt.luau` (`Layers`, `Branches`, `Hold`, `Intensity`, `Dim`, `Prewarm`), `AbilityService.skyStrike`, remote `AbilityStrike`.
 Textures: `assets/vfx/textures/crater.png`, `crater_glow.png` (`build_thunder_lance_textures.py`, `ONLY = (...)`).
 
