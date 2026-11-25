@@ -178,7 +178,7 @@ local Abilities: { AbilityDef } = {
 		BleedSeconds = 5, -- ...for 5 s (5 total); a new hit refreshes it
 		MinRequestSeconds = 0.25,
 		AirUsable = false,
-		AnimationId = nil, -- the hand-made draw: upload VFX.BloodMoonSlash.CastAnimation (Save to Roblox), put the id here
+		AnimationId = "rbxassetid://110314848067099", -- the hand-made draw (BloodMoonSlashKeyframes), uploaded 2026-11-26
 		Description = "A giant crimson crescent that cuts through every enemy in front of you.",
 	},
 	{
