@@ -6,6 +6,14 @@
 --  * Timers are timestamps (state.until = now + seconds), never wait(). A new hit overwrites them.
 --  * One Heartbeat loop expires timers, regenerates guard and tracks control time for everyone.
 --  * The state is mirrored to the character as the attribute "CombatState" so clients and UI can read it.
+--  * Every attack/cast gets an action id. Being stunned, ragdolled, guard broken, dying or respawning
+--    cancels it, so a scheduled hit from an interrupted swing never lands (IsActionCurrent).
+--
+-- Damage invulnerability (i-frames, spawn shield) and stun immunity are separate things:
+--   HasIFrames      → the hit does nothing at all
+--   IsStunImmune    → the hit deals damage but can't stun / ragdoll
+--  * Slows (ApplySlow) are a status next to the state: WalkSpeed is worked out in ONE place
+--    (applyMovement) from the state and the slow, mirrored as SlowMultiplier / SlowEndsAt.
 
 local CollectionService = game:GetService("CollectionService")
 local PhysicsService = game:GetService("PhysicsService")
@@ -61,7 +69,29 @@ export type Fighter = {
 	stateEnd: number, -- 0 = no timer
 	stunImmuneUntil: number,
 	iFramesUntil: number,
-	combo: { hits: number, lastHitAt: number, usedAbilities: { [string]: boolean } }, -- combo this fighter is RECEIVING
+	spawnShieldUntil: number,
+	m1LockedUntil: number, -- finisher end lag survives dashing / abilities
+	action: ActionInfo?,
+	-- Anti-infinite: when the current stretch of being controlled started (0 = free).
+	controlStart: number,
+	freeSince: number,
+	controlCapped: boolean,
+	-- Block / guard meter.
+	guard: number,
+	lastBlockedAt: number,
+	blockStartedAt: number,
+	blockDisabledUntil: number,
+	-- Ragdoll.
+	ragdollStartedAt: number,
+	ragdollCancellable: boolean,
+	-- Combo this fighter is RECEIVING. usedAbilities[attackerKey .. abilityId] = cast id.
+	combo: { hits: number, lastHitAt: number, usedAbilities: { [string]: number } },
+	defaultJumpPower: number,
+	defaultJumpHeight: number,
+	-- Slow status (ApplySlow): WalkSpeed / jump multipliers while slowed (1 = not slowed).
+	slowMultiplier: number,
+	slowJumpMultiplier: number,
+	slowEndsAt: number, -- 0 = not slowed
 	label: BillboardGui?,
 	connections: { RBXScriptConnection },
 }
@@ -98,18 +128,20 @@ local function applyMovement(f: Fighter)
 	end
 	f.humanoid.WalkSpeed = speed
 	local noJump = NO_JUMP[f.state] == true
-	f.humanoid.JumpPower = if noJump then 0 else f.defaultJumpPower
-	f.humanoid.JumpHeight = if noJump then 0 else f.defaultJumpHeight
+	local jump = if f.slowEndsAt > 0 then f.slowJumpMultiplier else 1
+	f.humanoid.JumpPower = if noJump then 0 else f.defaultJumpPower * jump
+	f.humanoid.JumpHeight = if noJump then 0 else f.defaultJumpHeight * jump
 end
 
 -- Slow status, mirrored to the model as attributes SlowMultiplier / SlowEndsAt (server time) so
 -- clients and UI can read it. Cleared here only: when it runs out, the fighter dies, or is removed.
-local function setSlow(f: Fighter, multiplier: number, endsAt: number)
+local function setSlow(f: Fighter, multiplier: number, jumpMultiplier: number, endsAt: number)
 	f.slowMultiplier = multiplier
+	f.slowJumpMultiplier = jumpMultiplier
 	f.slowEndsAt = endsAt
 	f.model:SetAttribute("SlowMultiplier", if endsAt > 0 then multiplier else nil)
 	f.model:SetAttribute("SlowEndsAt", if endsAt > 0 then endsAt else nil)
-	applyWalkSpeed(f)
+	applyMovement(f)
 end
 
 local function updateLabel(f: Fighter)
@@ -456,6 +488,45 @@ local function setGroup(part: Instance)
 	end
 end
 
+local function unregister(model: Model)
+	local f = fighters[model]
+	if not f then
+		return
+	end
+	fighters[model] = nil
+	f.action = nil
+	-- A slow never outlives its fighter: dying or being removed (reset, leaving) clears it.
+	if f.slowEndsAt > 0 then
+		setSlow(f, 1, 1, 0)
+	end
+	for _, c in f.connections do
+		c:Disconnect()
+	end
+	for _, listener in removedListeners do
+		task.spawn(listener, model)
+	end
+end
+
+-- Slow a fighter: WalkSpeed x multiplier (and jump x jumpMultiplier, default 1) for `seconds`. Never
+-- stacks: a new slow refreshes the timer and keeps the stronger multipliers if one is already running.
+-- Returns false if model isn't a fighter.
+function StateService.ApplySlow(model: Model, multiplier: number, seconds: number, jumpMultiplier: number?): boolean
+	local f = fighters[model]
+	if not f or f.humanoid.Health <= 0 then
+		return false
+	end
+	local t = now()
+	local active = f.slowEndsAt > t
+	local jump = jumpMultiplier or 1
+	setSlow(
+		f,
+		if active then math.min(f.slowMultiplier, multiplier) else multiplier,
+		if active then math.min(f.slowJumpMultiplier, jump) else jump,
+		math.max(if active then f.slowEndsAt else 0, t + seconds)
+	)
+	return true
+end
+
 local function register(model: Model)
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	if not humanoid or fighters[model] then
@@ -471,6 +542,21 @@ local function register(model: Model)
 		stateEnd = 0,
 		stunImmuneUntil = 0,
 		iFramesUntil = 0,
+		spawnShieldUntil = if player then t + Combat.Respawn.ShieldSeconds else 0,
+		m1LockedUntil = 0,
+		action = nil,
+		controlStart = 0,
+		freeSince = t,
+		controlCapped = false,
+		guard = Combat.Block.GuardPoints,
+		lastBlockedAt = 0,
+		blockStartedAt = 0,
+		blockDisabledUntil = 0,
+		ragdollStartedAt = 0,
+		ragdollCancellable = false,
+		slowMultiplier = 1,
+		slowJumpMultiplier = 1,
+		slowEndsAt = 0,
 		combo = { hits = 0, lastHitAt = 0, usedAbilities = {} },
 		defaultJumpPower = humanoid.JumpPower,
 		defaultJumpHeight = humanoid.JumpHeight,
@@ -492,15 +578,21 @@ local function register(model: Model)
 	for _, part in model:GetDescendants() do
 		setGroup(part)
 	end
-	model.DescendantAdded:Connect(setGroup) -- accessories, tools, late-loading parts
-	model.AncestryChanged:Connect(function(_, parent)
-		if not parent then
-			fighters[model] = nil
-		end
-	end)
-	humanoid.Died:Connect(function()
-		fighters[model] = nil
-	end)
+	table.insert(f.connections, model.DescendantAdded:Connect(setGroup)) -- accessories, tools, late parts
+	table.insert(
+		f.connections,
+		model.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				unregister(model)
+			end
+		end)
+	)
+	table.insert(
+		f.connections,
+		humanoid.Died:Connect(function()
+			unregister(model)
+		end)
+	)
 end
 
 local function onTimerEnd(f: Fighter)
@@ -517,6 +609,9 @@ local function step(dt: number)
 	for _, f in fighters do
 		if f.stateEnd > 0 and t >= f.stateEnd then
 			onTimerEnd(f)
+		end
+		if f.slowEndsAt > 0 and t >= f.slowEndsAt then
+			setSlow(f, 1, 1, 0)
 		end
 
 		-- Anti-infinite control clock.
@@ -591,14 +686,7 @@ function StateService.Start()
 		end
 	end)
 
-	RunService.Heartbeat:Connect(function()
-		local t = now()
-		for _, f in fighters do
-			if f.stateEnd > 0 and t >= f.stateEnd then
-				onTimerEnd(f)
-			end
-		end
-	end)
+	RunService.Heartbeat:Connect(step)
 end
 
 return StateService

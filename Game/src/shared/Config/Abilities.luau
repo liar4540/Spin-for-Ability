@@ -113,14 +113,26 @@ local Abilities: { AbilityDef } = {
 		Description = "A fast lightning spear that flies in a straight line.",
 	},
 	{
+		-- Numbers from the Frost Bloom prompt (2026-11-24); client/Abilities/FrostBloomVFX CONFIG reads them.
+		-- Timeline: rune gathers 0-0.6 s (wind-up), flower opens 0.6-1.0 s, the hit lands at full bloom.
 		Id = "FrostBloom",
 		Name = "Frost Bloom",
-		Rarity = "Epic",
+		Rarity = "Uncommon",
 		Type = "AoE",
-		Damage = 15,
-		Cooldown = 12,
-		Range = 14,
-		Description = "An ice flower that slows everyone nearby.",
+		Damage = 20 / 1.35, -- the bloom deals exactly 20 after Uncommon's Power (x1.35)
+		Cooldown = 14,
+		Range = 18, -- radius in studs: a flat circle centred on the caster's feet (HitboxService.InCircle)
+		WindupSeconds = 1.0, -- key press -> full bloom (0.6 s rune wind-up + 0.4 s petals opening)
+		RecoverySeconds = 0.2,
+		AoeMaxTargets = 8,
+		OnHit = "None", -- not a stun: targets can still move and attack, only slower
+		SlowMultiplier = 0.6, -- Frozen Chill: WalkSpeed -40%...
+		SlowJumpMultiplier = 0.7, -- ...jump -30%...
+		SlowSeconds = 3, -- ...for 3 s; a new hit refreshes it, never stacks
+		AirUsable = false,
+		MinRequestSeconds = 0.25,
+		AnimationId = "rbxassetid://103663794525019", -- generated in Studio (Studio MCP generate_animation), 1.57 s
+		Description = "A crystal ice flower blooms around you, chilling everyone nearby.",
 	},
 	{
 		Id = "BloodMoonSlash",
