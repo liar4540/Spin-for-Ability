@@ -117,9 +117,9 @@ local Abilities: { AbilityDef } = {
 		-- Timeline: rune gathers 0-0.6 s (wind-up), flower opens 0.6-1.0 s, the hit lands at full bloom.
 		Id = "FrostBloom",
 		Name = "Frost Bloom",
-		Rarity = "Uncommon",
+		Rarity = "Epic",
 		Type = "AoE",
-		Damage = 20 / 1.35, -- the bloom deals exactly 20 after Uncommon's Power (x1.35)
+		Damage = 20 / 1.35 ^ 3, -- the bloom deals exactly 20 after Epic's Power (x1.35 per tier above Common)
 		Cooldown = 14,
 		Range = 18, -- radius in studs: a flat circle centred on the caster's feet (HitboxService.InCircle)
 		WindupSeconds = 1.0, -- key press -> full bloom (0.6 s rune wind-up + 0.4 s petals opening)
