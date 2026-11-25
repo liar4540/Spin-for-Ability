@@ -48,6 +48,13 @@ export type AbilityDef = {
 	SlowMultiplier: number?, -- a hit multiplies the target's WalkSpeed by this (StateService.ApplySlow)...
 	SlowSeconds: number?, -- ...for this long; a new hit refreshes the timer, never stacks
 	SlowJumpMultiplier: number?, -- ...and its jump height/power by this (default 1 = no jump change)
+	-- Crescent slash (Blood Moon Slash): a wide wall of energy swept forward from the caster.
+	-- WindupSeconds = release; Range = studs travelled; ProjectileSpeed = studs/second.
+	Crescent: boolean?,
+	CrescentWidth: number?, -- studs, side to side
+	CrescentHeight: number?, -- studs, from the ground up
+	BleedPerTick: number?, -- a clean hit bleeds this much every second... (CombatService.ApplyBleed)
+	BleedSeconds: number?, -- ...for this long; a new hit refreshes it, never stacks
 	-- Lock-on teleport (Shadow Swap): Range = lock-on radius. WindupSeconds = when the caster vanishes.
 	Teleport: boolean?, -- teleports behind the nearest enemy in Range (shared/Teleport); no enemy = refused, no cooldown
 	BehindStuds: number?, -- how far behind the target it lands

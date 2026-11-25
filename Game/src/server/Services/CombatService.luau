@@ -326,6 +326,60 @@ end
 
 -- Old damage path, kept so older ability code keeps working. It now goes through ApplyHit
 -- (block, immunity, scaling…). knockback = world velocity (studs/s). Prefer AbilityHit / ApplyHit.
+-- ===== Status damage (bleed) =====
+-- Damage from a status over time: no block, combo scaling, hit reaction or knockback, but spawn
+-- shields / i-frames still stop it and the attacker still gets the KO credit.
+function CombatService.StatusDamage(attacker: Player?, target: Model, amount: number): boolean
+	local humanoid = target:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 or not StateService.Get(target) or StateService.HasIFrames(target) then
+		return false
+	end
+	humanoid:TakeDamage(amount)
+	noteDamage(target, attacker)
+	return true
+end
+
+-- Bleed: `perTick` damage every second for `seconds` (Blood Moon Slash: 1 x 5). A new bleed refreshes
+-- the timer, never stacks. Mirrored as the attribute BleedEndsAt (server time) for UI / effects.
+type Bleed = { attacker: Player?, perTick: number, nextTick: number, endsAt: number }
+local bleeds: { [Model]: Bleed } = {}
+local BLEED_INTERVAL = 1
+
+local function stopBleed(target: Model)
+	bleeds[target] = nil
+	if target.Parent then
+		target:SetAttribute("BleedEndsAt", nil)
+	end
+end
+
+function CombatService.ApplyBleed(attacker: Player?, target: Model, perTick: number, seconds: number)
+	local humanoid = target:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then
+		return
+	end
+	local t = now()
+	bleeds[target] = { attacker = attacker, perTick = perTick, nextTick = t + BLEED_INTERVAL, endsAt = t + seconds }
+	target:SetAttribute("BleedEndsAt", t + seconds)
+end
+
+local function stepBleeds()
+	local t = now()
+	for target, bleed in bleeds do
+		local humanoid = target:FindFirstChildOfClass("Humanoid")
+		if not target.Parent or not humanoid or humanoid.Health <= 0 then
+			stopBleed(target)
+			continue
+		end
+		while t >= bleed.nextTick and bleed.nextTick <= bleed.endsAt + 0.001 do
+			CombatService.StatusDamage(bleed.attacker, target, bleed.perTick)
+			bleed.nextTick += BLEED_INTERVAL
+		end
+		if bleed.nextTick > bleed.endsAt + 0.001 then
+			stopBleed(target)
+		end
+	end
+end
+
 function CombatService.DealDamage(attacker: Player, target: Humanoid, amount: number, knockback: Vector3, abilityId: string)
 	local model = target.Parent
 	if model and model:IsA("Model") then
@@ -846,8 +900,10 @@ function CombatService.Start()
 	end
 	CollectionService:GetInstanceAddedSignal("TrainingDummy"):Connect(setUpDummy)
 	StateService.OnAdded(onFighterAdded)
+	RunService.Heartbeat:Connect(stepBleeds)
 	StateService.OnRemoved(function(model)
 		dashKinds[model] = nil
+		bleeds[model] = nil
 		task.delay(Combat.KOCreditSeconds, function()
 			lastHitBy[model] = nil -- (Died reads it first)
 		end)
