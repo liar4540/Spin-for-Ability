@@ -1,5 +1,5 @@
 --!strict
--- Frost Bloom (Uncommon, AoE): a frost rune under the caster, a crystal lotus blooms out of the ground,
+-- Frost Bloom (Epic, AoE): a frost rune under the caster, a crystal lotus blooms out of the ground,
 -- cold mist spreads over the 18-stud circle, everyone inside is chilled (slowed) at full bloom.
 -- Look: the Frost Bloom reference sheet (12 panels, Hit 0 - Hit +11). Palette pale cyan / ice blue /
 -- white / crystal blue. Calm and magical: no explosions, spikes, storms, lightning or fire.
