@@ -152,7 +152,7 @@ local Abilities: { AbilityDef } = {
 		RecoverySeconds = 0.05, -- free to M1 / use abilities right after arriving
 		AirUsable = true,
 		MinRequestSeconds = 0.25,
-		AnimationId = nil, -- set once the cast animation is uploaded and shared with the experience
+		AnimationId = "rbxassetid://133124508136712", -- generated in Studio (generate_animation), 0.97 s; played at 1.5x
 		Description = "Melt into shadow and reappear behind the nearest enemy.",
 	},
 	{
