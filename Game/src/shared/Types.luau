@@ -47,6 +47,9 @@ export type AbilityDef = {
 	Knockback: number?, -- studs/second pushed away from the attacker
 	SlowMultiplier: number?, -- a hit multiplies the target's WalkSpeed by this (StateService.ApplySlow)...
 	SlowSeconds: number?, -- ...for this long; a new hit refreshes the timer, never stacks
+	SlowJumpMultiplier: number?, -- ...and its jump height/power by this (default 1 = no jump change)
+	-- Area of effect around the caster. Range = radius (studs); WindupSeconds = when it hits.
+	AoeMaxTargets: number?, -- most fighters one cast hits (default 8)
 	MinRequestSeconds: number?, -- the server ignores another UseAbility for this ability within this time
 	DurationSeconds: number?, -- how long the move lasts (animation + recovery)
 	-- Projectile flight. WindupSeconds = when it leaves the hand; Range = how far it flies.

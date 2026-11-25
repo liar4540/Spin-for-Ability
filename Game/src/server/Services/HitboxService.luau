@@ -71,6 +71,36 @@ function HitboxService.Query(attacker: Model, boxCFrame: CFrame, size: Vector3, 
 	return found
 end
 
+-- Every living humanoid (each once, never the attacker's own) inside a flat circle on the ground:
+-- its HumanoidRootPart within `radius` (+ the lag margin) sideways from `center`, and within `height`
+-- studs above / `depth` below it. Closest first, at most maxTargets. (Frost Bloom's AoE.)
+function HitboxService.InCircle(attacker: Model, center: Vector3, radius: number, maxTargets: number, height: number?, depth: number?): { Humanoid }
+	local up = height or 10
+	local down = depth or 4
+	local reach = radius + LAG_MARGIN
+	local box = CFrame.new(center + Vector3.new(0, (up - down) / 2, 0))
+	local candidates = HitboxService.Query(attacker, box, Vector3.new(reach * 2, up + down, reach * 2), math.huge)
+	local inside: { { humanoid: Humanoid, distance: number } } = {}
+	for _, humanoid in candidates do
+		local root = humanoid.Parent and humanoid.Parent:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root then
+			local offset = root.Position - center
+			local flat = Vector3.new(offset.X, 0, offset.Z).Magnitude
+			if flat <= reach then
+				table.insert(inside, { humanoid = humanoid, distance = flat })
+			end
+		end
+	end
+	table.sort(inside, function(a, b)
+		return a.distance < b.distance
+	end)
+	local found: { Humanoid } = {}
+	for i = 1, math.min(#inside, maxTargets) do
+		found[i] = inside[i].humanoid
+	end
+	return found
+end
+
 -- Called once at startup, before any Start(). Create state, read config. Don't yield.
 function HitboxService.Init() end
 

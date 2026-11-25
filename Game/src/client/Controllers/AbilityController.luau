@@ -56,6 +56,7 @@ local EFFECTS: { [string]: Effect } = {
 	GaleStep = GaleStepVFX :: any,
 	FrostJab = require(AbilityEffects:WaitForChild("FrostJabVFX")) :: any,
 	ThunderLance = require(AbilityEffects:WaitForChild("ThunderLanceVFX")) :: any,
+	FrostBloom = require(AbilityEffects:WaitForChild("FrostBloomVFX")) :: any,
 }
 
 -- After using any ability, others can't start until this ends (so animations don't overlap).
