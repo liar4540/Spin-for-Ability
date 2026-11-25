@@ -48,6 +48,9 @@ export type AbilityDef = {
 	SlowMultiplier: number?, -- a hit multiplies the target's WalkSpeed by this (StateService.ApplySlow)...
 	SlowSeconds: number?, -- ...for this long; a new hit refreshes the timer, never stacks
 	SlowJumpMultiplier: number?, -- ...and its jump height/power by this (default 1 = no jump change)
+	-- Lock-on teleport (Shadow Swap): Range = lock-on radius. WindupSeconds = when the caster vanishes.
+	Teleport: boolean?, -- teleports behind the nearest enemy in Range (shared/Teleport); no enemy = refused, no cooldown
+	BehindStuds: number?, -- how far behind the target it lands
 	-- Area of effect around the caster. Range = radius (studs); WindupSeconds = when it hits.
 	AoeMaxTargets: number?, -- most fighters one cast hits (default 8)
 	MinRequestSeconds: number?, -- the server ignores another UseAbility for this ability within this time
