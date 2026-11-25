@@ -7,6 +7,7 @@
 -- AoE / Defense use come with those abilities. Delete/Lock come
 -- with the full Inventory screen.
 
+local CollectionService = game:GetService("CollectionService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,6 +17,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = Shared:WaitForChild("Config")
 local Remotes = require(Shared:WaitForChild("Remotes"))
 local Projectile = require(Shared:WaitForChild("Projectile"))
+local Teleport = require(Shared:WaitForChild("Teleport"))
 local Types = require(Shared:WaitForChild("Types"))
 local Economy = require(Config:WaitForChild("Economy"))
 local Abilities = require(Config:WaitForChild("Abilities"))
@@ -31,7 +33,7 @@ type AbilityDef = Types.AbilityDef
 
 -- Studio only: every player starts with these in storage, so abilities can be tested
 -- without spinning for them. Never runs in the live game.
-local STUDIO_STARTER_ABILITIES = { "EmberFist", "PebbleToss", "GaleStep", "FrostJab", "ThunderLance", "FrostBloom" }
+local STUDIO_STARTER_ABILITIES = { "EmberFist", "PebbleToss", "GaleStep", "FrostJab", "ThunderLance", "FrostBloom", "ShadowSwap" }
 
 -- Small allowance so a press sent the moment the cooldown ends isn't rejected because of ping.
 local LATENCY_ALLOWANCE = 0.2
@@ -69,6 +71,7 @@ local combatResult: RemoteEvent
 local abilityImpact: RemoteEvent
 local abilityLaunch: RemoteEvent
 local abilityStrike: RemoteEvent
+local abilityTeleport: RemoteEvent
 
 local function storageCount(data: DataService.PlayerData): number
 	local count = 0
@@ -409,12 +412,52 @@ local function useAoe(player: Player, character: Model, root: BasePart, def: Abi
 	end
 end
 
+-- Lock-on teleport (Shadow Swap): after the wind-up the SERVER moves the caster behind the target
+-- (shared/Teleport: the same rules the caster's client predicted with). If the target died or left
+-- range during the wind-up, the nearest other enemy is used; if there's none, the caster stays put.
+-- Every client then plays the vanish -> ribbon -> reappear from AbilityTeleport. No damage, no status:
+-- it only sets up the next attack (landing behind also gets past a front block).
+local TELEPORT_RANGE_GRACE = 5 -- the target may step this much further away during the wind-up
+local function validTeleportPick(character: Model, root: BasePart, pick: Model, range: number): boolean
+	if pick == character or not pick:IsDescendantOf(workspace) or not CollectionService:HasTag(pick, "Fighter") then
+		return false
+	end
+	local humanoid = pick:FindFirstChildOfClass("Humanoid")
+	local pickRoot = pick:FindFirstChild("HumanoidRootPart") :: BasePart?
+	return humanoid ~= nil and humanoid.Health > 0 and pickRoot ~= nil
+		and (pickRoot.Position - root.Position).Magnitude <= range + TELEPORT_RANGE_GRACE
+end
+local function useTeleport(player: Player, character: Model, root: BasePart, def: AbilityDef, castId: number, target: Model)
+	task.wait(def.WindupSeconds or 0)
+	if not CombatService.IsCastCurrent(player, castId) or not root.Parent then
+		return
+	end
+	local targetRoot = target:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local humanoid = target:FindFirstChildOfClass("Humanoid")
+	if not target.Parent or not targetRoot or not humanoid or humanoid.Health <= 0
+		or (targetRoot.Position - root.Position).Magnitude > def.Range + TELEPORT_RANGE_GRACE then
+		local other = Teleport.Nearest(character, def.Range)
+		if not other then
+			return
+		end
+		target = other
+	end
+	local landing = Teleport.Behind(character, target, def.BehindStuds or 3)
+	if not landing then
+		return
+	end
+	local from = root.Position
+	character:PivotTo(landing)
+	root.AssemblyLinearVelocity = Vector3.zero
+	abilityTeleport:FireAllClients(character, def.Id, from, landing.Position, target, workspace:GetServerTimeNow())
+end
+
 -- The dash itself already happened on the player's client; check it stays within MaxDashStuds.
 local function useDash(player: Player, root: BasePart, def: AbilityDef)
 	CombatService.WatchMovement(player, root, def.MaxDashStuds or def.Range + 2, def.DashWindowSeconds or 1)
 end
 
-local function onUseAbility(player: Player, slot: number, aim: Vector3)
+local function onUseAbility(player: Player, slot: number, aim: Vector3, pick: Model?)
 	local data = DataService.Get(player)
 	if not data or slot > AbilityService.SlotCount(player) then
 		return
@@ -472,6 +515,18 @@ local function onUseAbility(player: Player, slot: number, aim: Vector3)
 		reject("Cooldown")
 		return
 	end
+	-- Lock-on teleport with no enemy in range: not cast, so no cooldown is spent (the client puts its
+	-- local cooldown back from this reject).
+	local lockTarget: Model? = nil
+	if def.Teleport then
+		-- The client's own pick when it checks out (a living fighter within range, plus a little for
+		-- lag), so the caster lands where their screen predicted; otherwise the server's nearest.
+		lockTarget = if pick and validTeleportPick(character, root, pick, def.Range) then pick else Teleport.Nearest(character, def.Range)
+		if not lockTarget then
+			reject("NoTarget")
+			return
+		end
+	end
 	-- Combat state: not stunned / ragdolled / blocking / mid-cast / in an M1's startup, and
 	-- AirUsable if in the air. This also starts the cast (its id cancels with interruptions).
 	local castId = CombatService.BeginCast(player, def)
@@ -496,6 +551,8 @@ local function onUseAbility(player: Player, slot: number, aim: Vector3)
 		useProjectile(player, character, root, def, aim, castId)
 	elseif def.Type == "AoE" then
 		useAoe(player, character, root, def, castId)
+	elseif def.Type == "Movement" and def.Teleport and lockTarget then
+		useTeleport(player, character, root, def, castId, lockTarget)
 	elseif def.Type == "Movement" then
 		useDash(player, root, def)
 	end
@@ -543,6 +600,7 @@ function AbilityService.Init()
 	abilityImpact = Remotes.Event("AbilityImpact")
 	abilityLaunch = Remotes.Event("AbilityLaunch")
 	abilityStrike = Remotes.Event("AbilityStrike")
+	abilityTeleport = Remotes.Event("AbilityTeleport")
 end
 
 function AbilityService.Start()
@@ -558,8 +616,9 @@ function AbilityService.Start()
 		AbilityService.Unequip(player, slot)
 	end)
 
-	RemoteGuard.Event("UseAbility", { PerSecond = 5, Burst = 5 }, function(slot, aim)
+	RemoteGuard.Event("UseAbility", { PerSecond = 5, Burst = 5 }, function(slot, aim, pick)
 		return RemoteGuard.IsInteger(slot, 1, Economy.MaxSlots) and isUnitVector(aim)
+			and (pick == nil or (typeof(pick) == "Instance" and pick:IsA("Model")))
 	end, onUseAbility)
 
 	if RunService:IsStudio() then

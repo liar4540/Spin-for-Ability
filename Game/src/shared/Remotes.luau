@@ -30,6 +30,7 @@ local EVENTS = {
 	"AbilityHit", -- a projectile hit something: (attacker character, abilityId, position, normal[, target Model?, server time, seed])
 	"AbilityLaunch", -- a server-clock projectile left the hand: (attacker character, abilityId, origin, direction, server time, seed)
 	"AbilityStrike", -- a sky strike follows a projectile's character hit: (attacker character, abilityId, target Model, ground position, server time, seed)
+	"AbilityTeleport", -- a lock-on teleport landed: (caster character, abilityId, from, to, target Model, server time)
 	"AbilityImpact", -- a melee hit landed: (attacker character, abilityId, { { Target: Model, Position: Vector3 } }, server time)
 }
 

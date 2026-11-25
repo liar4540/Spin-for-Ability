@@ -38,6 +38,12 @@ type Effect = {
 	Impact: ((character: Model, hits: { { Target: Model, Position: Vector3 } }, serverTime: number) -> ())?,
 	-- Sky strike after a projectile's character hit (AbilityStrike): where it lands, when, the seed.
 	Strike: ((character: Model, target: Model?, groundPos: Vector3, serverTime: number, seed: number) -> ())?,
+	-- Lock-on teleports: false = can't be used right now (no enemy in range), so nothing plays and no cooldown starts.
+	CanUse: ((character: Model) -> boolean)?,
+	-- Lock-on teleports: the target this client picked, sent with UseAbility so the server lands us there too.
+	Pick: ((character: Model) -> Model?)?,
+	-- Lock-on teleport landed (AbilityTeleport): from, to, the target, the server time.
+	Teleport: ((character: Model, from: Vector3, to: Vector3, target: Model?, serverTime: number) -> ())?,
 }
 
 local KEYS: { [Enum.KeyCode]: number } = {
@@ -56,6 +62,7 @@ local EFFECTS: { [string]: Effect } = {
 	GaleStep = GaleStepVFX :: any,
 	FrostJab = require(AbilityEffects:WaitForChild("FrostJabVFX")) :: any,
 	ThunderLance = require(AbilityEffects:WaitForChild("ThunderLanceVFX")) :: any,
+	ShadowSwap = require(AbilityEffects:WaitForChild("ShadowSwapVFX")) :: any,
 	FrostBloom = require(AbilityEffects:WaitForChild("FrostBloomVFX")) :: any,
 }
 
@@ -273,6 +280,12 @@ function AbilityController.Use(slot: number)
 		return
 	end
 
+	local effect = EFFECTS[def.Id]
+	if effect and effect.CanUse and not effect.CanUse(character) then
+		nope(slot) -- e.g. Shadow Swap with no enemy in range: not cast, no cooldown
+		return
+	end
+
 	readyAt[def.Id] = now + def.Cooldown
 	busyUntil = now + BUSY_SECONDS
 
@@ -282,9 +295,8 @@ function AbilityController.Use(slot: number)
 	if def.Type == "Movement" then
 		aim = GaleStepVFX.Aim() or aim
 	end
-	useAbility:FireServer(slot, aim)
+	useAbility:FireServer(slot, aim, if effect and effect.Pick then effect.Pick(character) else nil)
 
-	local effect = EFFECTS[def.Id]
 	if effect then
 		effect.Play(character, aim, true)
 	end
@@ -361,6 +373,15 @@ function AbilityController.Start()
 		local effect = EFFECTS[abilityId]
 		if effect and effect.Strike and character then
 			effect.Strike(character, target, groundPos, serverTime, seed)
+		end
+	end)
+
+	-- Lock-on teleports (everyone; the caster already played its own and ignores this unless it was off).
+	Remotes.Event("AbilityTeleport").OnClientEvent:Connect(function(character: Model, abilityId: string, from: Vector3, to: Vector3,
+		target: Model?, serverTime: number)
+		local effect = EFFECTS[abilityId]
+		if effect and effect.Teleport and character then
+			effect.Teleport(character, from, to, target, serverTime)
 		end
 	end)
 

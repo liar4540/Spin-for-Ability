@@ -135,6 +135,27 @@ local Abilities: { AbilityDef } = {
 		Description = "A crystal ice flower blooms around you, chilling everyone nearby.",
 	},
 	{
+		-- From the Shadow Swap prompt (2026-11-26), changed with the user: no damage and no slow (the
+		-- auto-lock + landing behind the target is strong enough), cooldown 15 s instead of 16.
+		-- A combo opener: a better Gale Step that finds the enemy. client/Abilities/ShadowSwapVFX reads it.
+		-- Timeline: shadows gather 0-0.15 s (wind-up), vanish at 0.15 s, reappear behind the target ~0.27 s.
+		Id = "ShadowSwap",
+		Name = "Shadow Swap",
+		Rarity = "Epic",
+		Type = "Movement",
+		Damage = 0,
+		Cooldown = 15,
+		Range = 35, -- lock-on radius: the nearest enemy within this (no enemy = not cast, cooldown refunded)
+		Teleport = true,
+		BehindStuds = 3, -- lands this far behind the target, facing it
+		WindupSeconds = 0.15, -- crouch + shadows gather, then the caster vanishes and the server moves them
+		RecoverySeconds = 0.05, -- free to M1 / use abilities right after arriving
+		AirUsable = true,
+		MinRequestSeconds = 0.25,
+		AnimationId = nil, -- set once the cast animation is uploaded and shared with the experience
+		Description = "Melt into shadow and reappear behind the nearest enemy.",
+	},
+	{
 		Id = "BloodMoonSlash",
 		Name = "Blood Moon Slash",
 		Rarity = "Legendary",
