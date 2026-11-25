@@ -156,14 +156,30 @@ local Abilities: { AbilityDef } = {
 		Description = "Melt into shadow and reappear behind the nearest enemy.",
 	},
 	{
+		-- From the Blood Moon Slash prompt (2026-11-26); decided with the user: damage stays 20 + 5 bleed,
+		-- the crescent stops at walls; v2 (user feedback): a real katana drawn from a sheath at the left
+		-- hip (iaido), release at 0.58 s (the draw's fastest moment, BloodMoonSlashKeyframes), crescent
+		-- flies 30 studs in 0.33 s. client/Abilities/BloodMoonSlashVFX reads it.
 		Id = "BloodMoonSlash",
 		Name = "Blood Moon Slash",
 		Rarity = "Legendary",
 		Type = "Melee",
-		Damage = 28,
-		Cooldown = 14,
-		Range = 12,
-		Description = "A wide crescent slash with a red glow.",
+		Damage = 20 / 1.35 ^ 4, -- each enemy takes exactly 20 after Legendary's Power (x1.35 per tier above Common)
+		Cooldown = 20,
+		Range = 30, -- studs the crescent travels (less if a wall is in the way: it stops there)
+		Crescent = true,
+		CrescentWidth = 30,
+		CrescentHeight = 10,
+		ProjectileSpeed = 90,
+		WindupSeconds = 0.58, -- the draw's fastest moment (client/Abilities/BloodMoonSlashKeyframes): the release
+		RecoverySeconds = 0.35, -- follow-through before the caster is free
+		OnHit = "None", -- no stun or knockback: the damage + bleed are the payoff
+		BleedPerTick = 1, -- Bleeding Wound: 1 damage a second...
+		BleedSeconds = 5, -- ...for 5 s (5 total); a new hit refreshes it
+		MinRequestSeconds = 0.25,
+		AirUsable = false,
+		AnimationId = nil, -- the hand-made draw: upload VFX.BloodMoonSlash.CastAnimation (Save to Roblox), put the id here
+		Description = "A giant crimson crescent that cuts through every enemy in front of you.",
 	},
 	{
 		Id = "VoidEclipse",

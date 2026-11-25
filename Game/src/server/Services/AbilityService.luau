@@ -33,7 +33,7 @@ type AbilityDef = Types.AbilityDef
 
 -- Studio only: every player starts with these in storage, so abilities can be tested
 -- without spinning for them. Never runs in the live game.
-local STUDIO_STARTER_ABILITIES = { "EmberFist", "PebbleToss", "GaleStep", "FrostJab", "ThunderLance", "FrostBloom", "ShadowSwap" }
+local STUDIO_STARTER_ABILITIES = { "EmberFist", "PebbleToss", "GaleStep", "FrostJab", "ThunderLance", "FrostBloom", "ShadowSwap", "BloodMoonSlash" }
 
 -- Small allowance so a press sent the moment the cooldown ends isn't rejected because of ping.
 local LATENCY_ALLOWANCE = 0.2
@@ -412,6 +412,60 @@ local function useAoe(player: Player, character: Model, root: BasePart, def: Abi
 	end
 end
 
+-- Crescent slash (Blood Moon Slash): after the wind-up a CrescentWidth x CrescentHeight wall of energy
+-- sweeps forward from the caster at ProjectileSpeed for Range studs (less if a wall is in the way: it
+-- stops there). Every frame the box between where it was and where it is now is checked, so nothing is
+-- skipped; it pierces and hits each enemy once. A clean hit (not blocked) also bleeds. Every client
+-- draws the crescent from AbilityUsed on its own clock and the bleed from AbilityImpact.
+local CRESCENT_GROUND = 3 -- studs from the HumanoidRootPart down to the feet
+local function useCrescent(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3, castId: number, fromHook: boolean?)
+	task.wait(def.WindupSeconds or 0)
+	if (not fromHook and not CombatService.IsCastCurrent(player, castId)) or not root.Parent then
+		return
+	end
+	local forward = Vector3.new(aim.X, 0, aim.Z)
+	forward = if forward.Magnitude > 0.01 then forward.Unit else Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z).Unit
+	local origin = root.Position
+	local width = def.CrescentWidth or 30
+	local height = def.CrescentHeight or 10
+	local speed = def.ProjectileSpeed or 90
+	local wall = workspace:Raycast(origin, forward * def.Range, Projectile.Filters(character).World)
+	local travel = if wall then math.max(0, wall.Distance - 0.5) else def.Range
+	local lift = Vector3.yAxis * (height / 2 - CRESCENT_GROUND)
+
+	local struck: { [Model]: boolean } = {}
+	local start = os.clock()
+	local last = -1.5 -- starts just behind the caster, so someone hugging them is hit too
+	while true do
+		local front = math.min(speed * (os.clock() - start), travel)
+		if front > last then
+			local mid = origin + forward * ((front + last) / 2) + lift
+			local box = CFrame.lookAt(mid, mid + forward)
+			for _, humanoid in HitboxService.Query(character, box, Vector3.new(width, height, front - last + 2), 16) do
+				local model = humanoid.Parent
+				if model and model:IsA("Model") and not struck[model] then
+					struck[model] = true
+					local landed, result = CombatService.AbilityHit(player, model, def, castId, { origin = origin })
+					if landed and result == "Hit" then
+						if def.BleedPerTick and def.BleedSeconds then
+							CombatService.ApplyBleed(player, model, def.BleedPerTick, def.BleedSeconds)
+						end
+						local targetRoot = model:FindFirstChild("HumanoidRootPart") :: BasePart?
+						if targetRoot then
+							abilityImpact:FireAllClients(character, def.Id, { { Target = model, Position = targetRoot.Position } }, workspace:GetServerTimeNow())
+						end
+					end
+				end
+			end
+			last = front
+		end
+		if front >= travel then
+			break
+		end
+		RunService.Heartbeat:Wait()
+	end
+end
+
 -- Lock-on teleport (Shadow Swap): after the wind-up the SERVER moves the caster behind the target
 -- (shared/Teleport: the same rules the caster's client predicted with). If the target died or left
 -- range during the wind-up, the nearest other enemy is used; if there's none, the caster stays put.
@@ -543,7 +597,9 @@ local function onUseAbility(player: Player, slot: number, aim: Vector3, pick: Mo
 		end
 	end
 
-	if def.Type == "Melee" then
+	if def.Crescent then
+		useCrescent(player, character, root, def, aim, castId)
+	elseif def.Type == "Melee" then
 		useMelee(player, character, root, def, aim, castId)
 	elseif def.Type == "Projectile" and def.ServerClock then
 		useClockProjectile(player, character, root, def, aim, castId)
@@ -646,6 +702,11 @@ function AbilityService.Start()
 			hookCasts -= 1
 			if action == "Projectile" and def.ServerClock and origin and direction then
 				return useClockProjectile(player, character, root, def, direction, hookCasts, { Origin = origin, Direction = direction })
+			end
+			if action == "Crescent" and def.Crescent then
+				local look = root.CFrame.LookVector
+				task.spawn(useCrescent, player, character, root, def, Vector3.new(look.X, 0, look.Z).Unit, hookCasts, true)
+				return true
 			end
 			if action == "AoE" and def.Type == "AoE" then
 				task.spawn(useAoe, player, character, root, def, hookCasts, true)

@@ -63,6 +63,7 @@ local EFFECTS: { [string]: Effect } = {
 	FrostJab = require(AbilityEffects:WaitForChild("FrostJabVFX")) :: any,
 	ThunderLance = require(AbilityEffects:WaitForChild("ThunderLanceVFX")) :: any,
 	ShadowSwap = require(AbilityEffects:WaitForChild("ShadowSwapVFX")) :: any,
+	BloodMoonSlash = require(AbilityEffects:WaitForChild("BloodMoonSlashVFX")) :: any,
 	FrostBloom = require(AbilityEffects:WaitForChild("FrostBloomVFX")) :: any,
 }
 
