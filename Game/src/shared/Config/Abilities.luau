@@ -209,7 +209,7 @@ local Abilities: { AbilityDef } = {
 		GuardDamage = 1, -- per blocked tick (guard 6: holding block into the beam breaks in ~1 s)
 		AirUsable = false,
 		MinRequestSeconds = 0.25,
-		AnimationId = nil, -- set once the cast animation is uploaded and shared
+		AnimationId = "rbxassetid://73106483251546", -- the hand-made charge + thrust (StarCannonKeyframes), uploaded 2026-11-27
 		Description = "Charge a star in your hands and unleash a massive beam of stellar energy.",
 	},
 	{
