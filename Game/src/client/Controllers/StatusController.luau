@@ -4,7 +4,8 @@
 --   BleedEndsAt (server time; CombatService.ApplyBleed)  -> blood-drop icon above the head with a timer
 --       bar, blood dripping / dark red streaks / a red haze on the body (VFX.BloodMoonSlash.Bleed), and
 --       on every bleed tick (health drops while bleeding) a splash of blood + a short red flash
---   SlowEndsAt (server time; StateService.ApplySlow: Frost Jab, Frost Bloom) -> snowflake icon + timer bar
+--   SlowEndsAt (server time; StateService.ApplySlow) -> an icon by SlowKind: "Freeze" (Frost Jab, Frost
+--       Bloom) = snowflake, "Heavy" (Star Cannon) = a gold star pressing down; + timer bar
 -- Icons: Game/assets/vfx/_src/build_blood_moon_textures.py (status_bleed.png, status_freeze.png).
 
 local CollectionService = game:GetService("CollectionService")
@@ -15,7 +16,12 @@ local TweenService = game:GetService("TweenService")
 local FIGHTER_TAG = "Fighter"
 local STATUSES = {
 	{ Attribute = "BleedEndsAt", Name = "Bleed", Icon = "rbxassetid://125722237614130", Bar = Color3.fromRGB(200, 10, 30) },
-	{ Attribute = "SlowEndsAt", Name = "Freeze", Icon = "rbxassetid://81174984287526", Bar = Color3.fromRGB(150, 215, 255) },
+	{ Attribute = "SlowEndsAt", Name = "Slow", Icon = "rbxassetid://81174984287526", Bar = Color3.fromRGB(150, 215, 255) },
+}
+-- the slow's icon depends on what caused it (SlowKind, set with SlowEndsAt by StateService)
+local SLOW_KINDS: { [string]: { Icon: string, Bar: Color3 } } = {
+	Freeze = { Icon = "rbxassetid://81174984287526", Bar = Color3.fromRGB(150, 215, 255) },
+	Heavy = { Icon = "rbxassetid://76281338593248", Bar = Color3.fromRGB(255, 205, 60) },
 }
 local ICON_PX = 34
 local FLASH = Color3.fromRGB(200, 0, 20)
@@ -70,10 +76,20 @@ local function addIcon(w: Watched, spec: typeof(STATUSES[1]), endsAt: number)
 	if not g then
 		return
 	end
+	local iconId, barColor = spec.Icon, spec.Bar
+	if spec.Name == "Slow" then
+		local kind = SLOW_KINDS[(w.Model:GetAttribute("SlowKind") :: string?) or "Freeze"] or SLOW_KINDS.Freeze
+		iconId, barColor = kind.Icon, kind.Bar
+	end
 	local existing = w.Statuses[spec.Name]
 	if existing then -- refreshed (a new hit)
 		existing.EndsAt = endsAt
 		existing.Total = math.max(0.1, endsAt - now())
+		local img = existing.Frame:FindFirstChild("Icon") :: ImageLabel?
+		if img then
+			img.Image = iconId
+		end
+		existing.Bar.BackgroundColor3 = barColor
 		return
 	end
 	local frame = Instance.new("Frame")
@@ -83,7 +99,7 @@ local function addIcon(w: Watched, spec: typeof(STATUSES[1]), endsAt: number)
 	local icon = Instance.new("ImageLabel")
 	icon.Name = "Icon"
 	icon.BackgroundTransparency = 1
-	icon.Image = spec.Icon
+	icon.Image = iconId
 	icon.Size = UDim2.fromOffset(ICON_PX, ICON_PX)
 	icon.Parent = frame
 	local scale = Instance.new("UIScale")
@@ -98,7 +114,7 @@ local function addIcon(w: Watched, spec: typeof(STATUSES[1]), endsAt: number)
 	back.Size = UDim2.fromOffset(ICON_PX - 4, 4)
 	back.Parent = frame
 	local bar = Instance.new("Frame")
-	bar.BackgroundColor3 = spec.Bar
+	bar.BackgroundColor3 = barColor
 	bar.BorderSizePixel = 0
 	bar.Size = UDim2.fromScale(1, 1)
 	bar.Parent = back

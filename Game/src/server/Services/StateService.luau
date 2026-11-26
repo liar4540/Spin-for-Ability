@@ -92,6 +92,7 @@ export type Fighter = {
 	slowMultiplier: number,
 	slowJumpMultiplier: number,
 	slowEndsAt: number, -- 0 = not slowed
+	rootedUntil: number, -- can't walk or jump until then (a channelled cast, e.g. Star Cannon); 0 = free
 	label: BillboardGui?,
 	connections: { RBXScriptConnection },
 }
@@ -126,8 +127,12 @@ local function applyMovement(f: Fighter)
 	if f.slowEndsAt > 0 then
 		speed *= f.slowMultiplier
 	end
+	local rooted = f.rootedUntil > 0
+	if rooted then
+		speed = 0
+	end
 	f.humanoid.WalkSpeed = speed
-	local noJump = NO_JUMP[f.state] == true
+	local noJump = NO_JUMP[f.state] == true or rooted
 	local jump = if f.slowEndsAt > 0 then f.slowJumpMultiplier else 1
 	f.humanoid.JumpPower = if noJump then 0 else f.defaultJumpPower * jump
 	f.humanoid.JumpHeight = if noJump then 0 else f.defaultJumpHeight * jump
@@ -135,12 +140,25 @@ end
 
 -- Slow status, mirrored to the model as attributes SlowMultiplier / SlowEndsAt (server time) so
 -- clients and UI can read it. Cleared here only: when it runs out, the fighter dies, or is removed.
-local function setSlow(f: Fighter, multiplier: number, jumpMultiplier: number, endsAt: number)
+-- SlowKind says what slowed them, for the status icon (StatusController): "Freeze" (frost, the default)
+-- or "Heavy" (Star Cannon's overwhelming energy).
+local function setSlow(f: Fighter, multiplier: number, jumpMultiplier: number, endsAt: number, kind: string?)
 	f.slowMultiplier = multiplier
 	f.slowJumpMultiplier = jumpMultiplier
 	f.slowEndsAt = endsAt
 	f.model:SetAttribute("SlowMultiplier", if endsAt > 0 then multiplier else nil)
+	f.model:SetAttribute("SlowKind", if endsAt > 0 then kind or "Freeze" else nil)
 	f.model:SetAttribute("SlowEndsAt", if endsAt > 0 then endsAt else nil)
+	applyMovement(f)
+end
+
+-- Root a fighter in place (no walking or jumping) until server time `untilTime`; 0 frees them now.
+function StateService.SetRooted(model: Model, untilTime: number)
+	local f = fighters[model]
+	if not f then
+		return
+	end
+	f.rootedUntil = if untilTime > now() then untilTime else 0
 	applyMovement(f)
 end
 
@@ -510,7 +528,7 @@ end
 -- Slow a fighter: WalkSpeed x multiplier (and jump x jumpMultiplier, default 1) for `seconds`. Never
 -- stacks: a new slow refreshes the timer and keeps the stronger multipliers if one is already running.
 -- Returns false if model isn't a fighter.
-function StateService.ApplySlow(model: Model, multiplier: number, seconds: number, jumpMultiplier: number?): boolean
+function StateService.ApplySlow(model: Model, multiplier: number, seconds: number, jumpMultiplier: number?, kind: string?): boolean
 	local f = fighters[model]
 	if not f or f.humanoid.Health <= 0 then
 		return false
@@ -522,7 +540,8 @@ function StateService.ApplySlow(model: Model, multiplier: number, seconds: numbe
 		f,
 		if active then math.min(f.slowMultiplier, multiplier) else multiplier,
 		if active then math.min(f.slowJumpMultiplier, jump) else jump,
-		math.max(if active then f.slowEndsAt else 0, t + seconds)
+		math.max(if active then f.slowEndsAt else 0, t + seconds),
+		kind
 	)
 	return true
 end
@@ -556,6 +575,7 @@ local function register(model: Model)
 		ragdollCancellable = false,
 		slowMultiplier = 1,
 		slowJumpMultiplier = 1,
+		rootedUntil = 0,
 		slowEndsAt = 0,
 		combo = { hits = 0, lastHitAt = 0, usedAbilities = {} },
 		defaultJumpPower = humanoid.JumpPower,
@@ -612,6 +632,10 @@ local function step(dt: number)
 		end
 		if f.slowEndsAt > 0 and t >= f.slowEndsAt then
 			setSlow(f, 1, 1, 0)
+		end
+		if f.rootedUntil > 0 and t >= f.rootedUntil then
+			f.rootedUntil = 0
+			applyMovement(f)
 		end
 
 		-- Anti-infinite control clock.

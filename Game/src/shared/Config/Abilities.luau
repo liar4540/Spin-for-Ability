@@ -182,6 +182,37 @@ local Abilities: { AbilityDef } = {
 		Description = "A giant crimson crescent that cuts through every enemy in front of you.",
 	},
 	{
+		-- From the Star Cannon prompt (2026-11-26); decided with the user: the beam is locked to the
+		-- direction faced at release (no sweeping), a heavy slow so enemies can't walk out (Kamehameha-
+		-- inspired), a stun / ragdoll on the caster cancels the charge or the beam (cooldown still spent),
+		-- a front block stops it but drains guard every tick. client/Abilities/StarCannonVFX reads it.
+		-- Timeline: rooted charge 1.5 s (orb + aura), beam 2 s, arms lower 0.4 s.
+		Id = "StarCannon",
+		Name = "Star Cannon",
+		Rarity = "Legendary",
+		Type = "Projectile",
+		Damage = 10 / 1.35 ^ 4, -- first contact deals exactly 10 after Legendary's Power
+		Cooldown = 20,
+		Range = 80, -- beam length (less if a wall is in the way: it stops there)
+		Beam = true,
+		BeamWidth = 12,
+		BeamSeconds = 2,
+		BeamTickSeconds = 0.2,
+		BeamTickDamage = 2, -- every 0.2 s while inside after the first contact (final damage)
+		BeamMaxDamage = 30, -- 10 + 10 ticks x 2: the most one enemy takes from one beam
+		WindupSeconds = 1.5, -- the charge (caster rooted, can't turn); stun / ragdoll cancels it
+		RecoverySeconds = 2.4, -- the beam (2 s) + lowering the arms; stays rooted, a stun stops the beam
+		SlowMultiplier = 0.3, -- walk -70% while being hit...
+		SlowJumpMultiplier = 0.5, -- ...jump -50%...
+		SlowSeconds = 0.5, -- ...lasting 0.5 s after the last tick that hit them
+		SlowKind = "Heavy",
+		GuardDamage = 1, -- per blocked tick (guard 6: holding block into the beam breaks in ~1 s)
+		AirUsable = false,
+		MinRequestSeconds = 0.25,
+		AnimationId = nil, -- set once the cast animation is uploaded and shared
+		Description = "Charge a star in your hands and unleash a massive beam of stellar energy.",
+	},
+	{
 		Id = "VoidEclipse",
 		Name = "Void Eclipse",
 		Rarity = "Mythic",
