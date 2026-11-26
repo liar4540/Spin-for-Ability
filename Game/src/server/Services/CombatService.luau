@@ -326,6 +326,41 @@ end
 
 -- Old damage path, kept so older ability code keeps working. It now goes through ApplyHit
 -- (block, immunity, scaling…). knockback = world velocity (studs/s). Prefer AbilityHit / ApplyHit.
+-- ===== Channelled beam ticks (Star Cannon) =====
+-- One tick of a beam: block (front cone, held) stops it but drains `guardDamage` guard (a guard break
+-- staggers); otherwise `amount` damage with no combo scaling, no hit reaction and no knockback (the
+-- beam is not a stun). Safe zones and i-frames apply. Returns what happened.
+function CombatService.TickHit(attacker: Player, target: Model, amount: number, origin: Vector3, abilityId: string, guardDamage: number): HitResult
+	local humanoid = target:FindFirstChildOfClass("Humanoid")
+	local root = rootOf(target)
+	if not humanoid or not root or humanoid.Health <= 0 or not StateService.Get(target) then
+		return "Invalid"
+	end
+	local attackerCharacter = attacker and attacker.Character
+	if attackerCharacter == target then
+		return "Invalid"
+	end
+	local attackerRoot = rootOf(attackerCharacter)
+	if not isDummy(target) then
+		if inSafeZone(root.Position) or (attackerRoot and inSafeZone(attackerRoot.Position)) then
+			return "SafeZone"
+		end
+	end
+	if StateService.HasIFrames(target) then
+		return "Immune"
+	end
+	local f = StateService.Get(target)
+	if f and f.state == "Blocking" then
+		local held = f.blockStartedAt > 0 and now() - f.blockStartedAt >= Combat.Block.Startup
+		if held and fromFront(root, origin) then
+			return blocked(attacker, target, root, humanoid, { damage = amount, guardDamage = guardDamage, abilityId = abilityId } :: any)
+		end
+	end
+	humanoid:TakeDamage(amount)
+	noteDamage(target, attacker)
+	return "Hit"
+end
+
 -- ===== Status damage (bleed) =====
 -- Damage from a status over time: no block, combo scaling, hit reaction or knockback, but spawn
 -- shields / i-frames still stop it and the attacker still gets the KO credit.

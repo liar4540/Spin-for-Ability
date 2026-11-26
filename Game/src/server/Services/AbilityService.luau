@@ -21,6 +21,7 @@ local Teleport = require(Shared:WaitForChild("Teleport"))
 local Types = require(Shared:WaitForChild("Types"))
 local Economy = require(Config:WaitForChild("Economy"))
 local Abilities = require(Config:WaitForChild("Abilities"))
+local Rarities = require(Config:WaitForChild("Rarities"))
 
 local DataService = require(script.Parent.DataService)
 local MonetizationService = require(script.Parent.MonetizationService)
@@ -33,7 +34,7 @@ type AbilityDef = Types.AbilityDef
 
 -- Studio only: every player starts with these in storage, so abilities can be tested
 -- without spinning for them. Never runs in the live game.
-local STUDIO_STARTER_ABILITIES = { "EmberFist", "PebbleToss", "GaleStep", "FrostJab", "ThunderLance", "FrostBloom", "ShadowSwap", "BloodMoonSlash" }
+local STUDIO_STARTER_ABILITIES = { "EmberFist", "PebbleToss", "GaleStep", "FrostJab", "ThunderLance", "FrostBloom", "ShadowSwap", "BloodMoonSlash", "StarCannon" }
 
 -- Small allowance so a press sent the moment the cooldown ends isn't rejected because of ping.
 local LATENCY_ALLOWANCE = 0.2
@@ -72,6 +73,7 @@ local abilityImpact: RemoteEvent
 local abilityLaunch: RemoteEvent
 local abilityStrike: RemoteEvent
 local abilityTeleport: RemoteEvent
+local abilityBeam: RemoteEvent
 
 local function storageCount(data: DataService.PlayerData): number
 	local count = 0
@@ -466,6 +468,92 @@ local function useCrescent(player: Player, character: Model, root: BasePart, def
 	end
 end
 
+-- Channelled beam (Star Cannon). The caster is rooted from the key press (can't walk, jump or turn;
+-- the direction is the aim at the press). After the charge (WindupSeconds) the beam fires from the
+-- hands for BeamSeconds: every BeamTickSeconds a BeamWidth-square box along it (Range studs, less at
+-- a wall) is checked. An enemy's first contact deals Damage (x rarity Power), every later tick
+-- BeamTickDamage, up to BeamMaxDamage per enemy; each clean tick slows them (refreshing). A front
+-- block stops a tick but drains GuardDamage guard. A stun / ragdoll / death on the caster (the cast is
+-- no longer current) cancels the charge or stops the beam; everyone is told (AbilityBeam "Stop").
+local BEAM_HANDS = Vector3.new(0, -0.1, 1.65) -- between the palms at the thrust (StarCannonKeyframes, forward kinematics): right, up, forward from the root
+local BEAM_LOWER = 0.4 -- arms come down after the beam
+local function useBeam(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3, castId: number)
+	local forward = Vector3.new(aim.X, 0, aim.Z)
+	forward = if forward.Magnitude > 0.01 then forward.Unit else Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z).Unit
+	local charge = def.WindupSeconds or 1.5
+	local seconds = def.BeamSeconds or 2
+	local t0 = workspace:GetServerTimeNow()
+	StateService.SetRooted(character, t0 + charge + seconds + BEAM_LOWER)
+	root.CFrame = CFrame.lookAt(root.Position, root.Position + forward)
+	local function cancel()
+		StateService.SetRooted(character, 0)
+		abilityBeam:FireAllClients(character, def.Id, "Stop")
+	end
+
+	-- the charge: watched every frame so an interruption frees the caster at once
+	local chargeEnds = os.clock() + charge
+	while os.clock() < chargeEnds do
+		if not CombatService.IsCastCurrent(player, castId) or not root.Parent then
+			cancel()
+			return
+		end
+		RunService.Heartbeat:Wait()
+	end
+
+	local origin = root.Position + forward * BEAM_HANDS.Z + Vector3.yAxis * BEAM_HANDS.Y
+	local wall = workspace:Raycast(origin, forward * def.Range, Projectile.Filters(character).World)
+	local length = if wall then math.max(1, wall.Distance) else def.Range
+	abilityBeam:FireAllClients(character, def.Id, "Fire", origin, forward, length, workspace:GetServerTimeNow())
+
+	local width = def.BeamWidth or 12
+	local interval = def.BeamTickSeconds or 0.2
+	local first = def.Damage * Rarities.Defs[def.Rarity].Power
+	local tick = def.BeamTickDamage or 2
+	local cap = def.BeamMaxDamage or math.huge
+	local box = CFrame.lookAt(origin + forward * (length / 2), origin + forward * length)
+	local size = Vector3.new(width, width, length)
+	local dealt: { [Model]: number } = {}
+	local ticks = math.floor(seconds / interval + 0.5)
+	for i = 0, ticks do
+		if not CombatService.IsCastCurrent(player, castId) or not root.Parent then
+			cancel()
+			return
+		end
+		local impacts: { { Target: Model, Position: Vector3 } } = {}
+		for _, humanoid in HitboxService.Query(character, box, size, 24) do
+			local model = humanoid.Parent
+			if not model or not model:IsA("Model") then
+				continue
+			end
+			local isFirst = dealt[model] == nil
+			local amount = math.min(if isFirst then first else tick, cap - (dealt[model] or 0))
+			if amount <= 0 then
+				continue
+			end
+			dealt[model] = dealt[model] or 0
+			local result = CombatService.TickHit(player, model, amount, origin, def.Id, if isFirst then 2 else (def.GuardDamage or 1))
+			if result == "Hit" then
+				dealt[model] += amount
+				if def.SlowMultiplier and def.SlowSeconds then
+					StateService.ApplySlow(model, def.SlowMultiplier, def.SlowSeconds + interval, def.SlowJumpMultiplier, def.SlowKind)
+				end
+				if isFirst then
+					local targetRoot = model:FindFirstChild("HumanoidRootPart") :: BasePart?
+					if targetRoot then
+						table.insert(impacts, { Target = model, Position = targetRoot.Position })
+					end
+				end
+			end
+		end
+		if #impacts > 0 then
+			abilityImpact:FireAllClients(character, def.Id, impacts, workspace:GetServerTimeNow())
+		end
+		if i < ticks then
+			task.wait(interval)
+		end
+	end
+end
+
 -- Lock-on teleport (Shadow Swap): after the wind-up the SERVER moves the caster behind the target
 -- (shared/Teleport: the same rules the caster's client predicted with). If the target died or left
 -- range during the wind-up, the nearest other enemy is used; if there's none, the caster stays put.
@@ -599,6 +687,8 @@ local function onUseAbility(player: Player, slot: number, aim: Vector3, pick: Mo
 
 	if def.Crescent then
 		useCrescent(player, character, root, def, aim, castId)
+	elseif def.Beam then
+		useBeam(player, character, root, def, aim, castId)
 	elseif def.Type == "Melee" then
 		useMelee(player, character, root, def, aim, castId)
 	elseif def.Type == "Projectile" and def.ServerClock then
@@ -657,6 +747,7 @@ function AbilityService.Init()
 	abilityLaunch = Remotes.Event("AbilityLaunch")
 	abilityStrike = Remotes.Event("AbilityStrike")
 	abilityTeleport = Remotes.Event("AbilityTeleport")
+	abilityBeam = Remotes.Event("AbilityBeam")
 end
 
 function AbilityService.Start()

@@ -42,6 +42,8 @@ type Effect = {
 	CanUse: ((character: Model) -> boolean)?,
 	-- Lock-on teleports: the target this client picked, sent with UseAbility so the server lands us there too.
 	Pick: ((character: Model) -> Model?)?,
+	-- Channelled beam (AbilityBeam): "Fire" with origin / direction / length, or "Stop" (interrupted).
+	Beam: ((character: Model, phase: string, origin: Vector3?, direction: Vector3?, length: number?, serverTime: number?) -> ())?,
 	-- Lock-on teleport landed (AbilityTeleport): from, to, the target, the server time.
 	Teleport: ((character: Model, from: Vector3, to: Vector3, target: Model?, serverTime: number) -> ())?,
 }
@@ -64,6 +66,7 @@ local EFFECTS: { [string]: Effect } = {
 	ThunderLance = require(AbilityEffects:WaitForChild("ThunderLanceVFX")) :: any,
 	ShadowSwap = require(AbilityEffects:WaitForChild("ShadowSwapVFX")) :: any,
 	BloodMoonSlash = require(AbilityEffects:WaitForChild("BloodMoonSlashVFX")) :: any,
+	StarCannon = require(AbilityEffects:WaitForChild("StarCannonVFX")) :: any,
 	FrostBloom = require(AbilityEffects:WaitForChild("FrostBloomVFX")) :: any,
 }
 
@@ -374,6 +377,15 @@ function AbilityController.Start()
 		local effect = EFFECTS[abilityId]
 		if effect and effect.Strike and character then
 			effect.Strike(character, target, groundPos, serverTime, seed)
+		end
+	end)
+
+	-- Channelled beams (everyone): where the beam fires, or that it was stopped.
+	Remotes.Event("AbilityBeam").OnClientEvent:Connect(function(character: Model, abilityId: string, phase: string,
+		origin: Vector3?, direction: Vector3?, length: number?, serverTime: number?)
+		local effect = EFFECTS[abilityId]
+		if effect and effect.Beam and character then
+			effect.Beam(character, phase, origin, direction, length, serverTime)
 		end
 	end)
 

@@ -48,6 +48,14 @@ export type AbilityDef = {
 	SlowMultiplier: number?, -- a hit multiplies the target's WalkSpeed by this (StateService.ApplySlow)...
 	SlowSeconds: number?, -- ...for this long; a new hit refreshes the timer, never stacks
 	SlowJumpMultiplier: number?, -- ...and its jump height/power by this (default 1 = no jump change)
+	-- Channelled beam (Star Cannon): WindupSeconds = the charge (caster rooted); Range = beam length.
+	Beam: boolean?,
+	BeamWidth: number?, -- studs across (a square box this wide and tall)
+	BeamSeconds: number?, -- how long it fires
+	BeamTickSeconds: number?, -- damage every this often while inside
+	BeamTickDamage: number?, -- per tick, final (no rarity Power); first contact deals Damage x Power
+	BeamMaxDamage: number?, -- most one enemy can take from one beam
+	SlowKind: string?, -- status icon for this ability's slow: "Freeze" (default) or "Heavy"
 	-- Crescent slash (Blood Moon Slash): a wide wall of energy swept forward from the caster.
 	-- WindupSeconds = release; Range = studs travelled; ProjectileSpeed = studs/second.
 	Crescent: boolean?,
