@@ -290,7 +290,8 @@ function AbilityController.Use(slot: number)
 		return
 	end
 
-	readyAt[def.Id] = now + def.Cooldown
+	local devNoCooldown = RunService:IsStudio() and Players.LocalPlayer:GetAttribute("DevNoCooldown") == true
+	readyAt[def.Id] = now + (if devNoCooldown then 0 else def.Cooldown)
 	busyUntil = now + BUSY_SECONDS
 
 	-- Aim where the character faces (soft-aim at the nearest enemy comes with mobile combat).
@@ -316,7 +317,52 @@ function AbilityController.Init()
 	useAbility = Remotes.Event("UseAbility")
 end
 
+-- Studio-only test button: toggles no cooldowns for this player (the server checks IsStudio too).
+-- Not part of the game: it is never built outside Studio.
+local function buildDevButton()
+	local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("DevNoCooldown", 10) :: RemoteEvent?
+	if not remote then
+		return
+	end
+	local player = Players.LocalPlayer
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "DevTools"
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 50
+	local button = Instance.new("TextButton")
+	button.Name = "NoCooldown"
+	button.AnchorPoint = Vector2.new(1, 0)
+	button.Position = UDim2.new(1, -12, 0, 60)
+	button.Size = UDim2.fromOffset(150, 34)
+	button.BackgroundColor3 = Theme.Colors.Panel
+	button.BackgroundTransparency = Theme.PanelTransparency
+	button.TextColor3 = Theme.Colors.Text
+	button.Font = Theme.Fonts.Body
+	button.TextSize = 16
+	button.AutoButtonColor = true
+	Theme.Round(button)
+	local stroke = Theme.Outline(button)
+	button.Parent = gui
+	local function refresh()
+		local on = player:GetAttribute("DevNoCooldown") == true
+		button.Text = if on then "No cooldown: ON" else "No cooldown: OFF"
+		stroke.Color = if on then Theme.Colors.Good else Theme.Colors.Outline
+		if on then
+			table.clear(readyAt)
+		end
+	end
+	refresh()
+	player:GetAttributeChangedSignal("DevNoCooldown"):Connect(refresh)
+	button.Activated:Connect(function()
+		remote:FireServer()
+	end)
+	gui.Parent = player:WaitForChild("PlayerGui")
+end
+
 function AbilityController.Start()
+	if RunService:IsStudio() then
+		task.spawn(buildDevButton)
+	end
 	buildHotbar()
 	redraw()
 	PlayerState.Changed:Connect(redraw)
