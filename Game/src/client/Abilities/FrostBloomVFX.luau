@@ -78,9 +78,9 @@ local CONFIG = {
 	BLOOM = {
 		-- name, count, base radius (studs from the centre), open tilt (deg from upright), yaw offset (deg)
 		RINGS = {
-			{ "PetalCore", 6, 1.0, 18, 0 },
-			{ "PetalInner", 8, 1.2, 30, 22.5 },
-			{ "PetalOuter", 8, 1.6, 55, 0 },
+			{ "PetalCore", 6, 1.2, 18, 0 },
+			{ "PetalInner", 8, 1.8, 30, 22.5 },
+			{ "PetalOuter", 8, 2.6, 55, 0 },
 		},
 		STAGGER = 0.05, -- each ring starts this much after the previous one (core first)
 		SECONDS = 0.4, -- rise + open, ends at FULL_BLOOM
