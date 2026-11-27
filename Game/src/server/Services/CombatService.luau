@@ -55,6 +55,8 @@ export type Hit = {
 	origin: Vector3?, -- where the hit comes from for the block's front check (default: attacker's root)
 	castId: number?, -- the ability cast this hit belongs to (once-per-combo allows every hit of one cast)
 	abilityId: string, -- "M1_1".."M1_4", "M1_Downslam", "M1_GroundSmash" for M1s; the ability's Id otherwise
+	fxKind: string?, -- the hit effect kind clients show (default "Hit"; "WallCombo" for the wall combo)
+	attackerModel: Model?, -- the attacker's character when there is no Player (NPC training dummies)
 }
 
 export type HitResult = "Hit" | "Blocked" | "GuardBreak" | "Immune" | "SafeZone" | "OncePerCombo" | "Invalid"
@@ -68,7 +70,7 @@ local killFeed: RemoteEvent
 
 -- Per-attacker M1 string. Reset when the character changes (respawn).
 type Chain = { index: number, lastAt: number, nextAllowedAt: number, character: Model? }
-local chains: { [Player]: Chain } = {}
+local chains: { [Instance]: Chain } = {} -- keyed by Player, or by the character for NPC dummies
 
 -- Dash cooldowns per player and group ("Front" / "SideBack"), server clock.
 local dashReadyAt: { [Player]: { [string]: number } } = {}
@@ -91,7 +93,10 @@ local function flat(v: Vector3): Vector3
 	return if f.Magnitude > 0.01 then f.Unit else Vector3.zero
 end
 
-local function reply(player: Player, ...: any)
+local function reply(player: Player?, ...: any)
+	if not player then
+		return -- an NPC dummy has no client to answer
+	end
 	combatResult:FireClient(player, ...)
 end
 
@@ -180,6 +185,45 @@ local function noteDamage(target: Model, attacker: Player?)
 	end
 end
 
+-- ===== Perfect block buff (Critical / Black Flash) =====
+-- A perfect block buffs the blocker's next M1: x CritMultiplier (Critical), or x BlackFlashMultiplier when
+-- they were already buffed and the chain allows it. The chain counts consecutive Black Flashes; it resets
+-- with a Critical, or when the buff lapses unused.
+type Buff = { kind: string?, untilAt: number, chain: number }
+local buffs: { [Model]: Buff } = {}
+
+local function grantBuff(character: Model)
+	local cfg = Combat.Block
+	local t = now()
+	local b = buffs[character]
+	if not b then
+		b = { kind = nil, untilAt = 0, chain = 0 }
+		buffs[character] = b
+	end
+	if t >= b.untilAt then
+		b.kind = nil
+		b.chain = 0
+	end
+	b.kind = if b.kind and b.chain < cfg.BlackFlashMaxChain then "BlackFlash" else "Critical"
+	b.untilAt = t + cfg.BuffSeconds
+end
+
+-- The attacker's M1 connects: returns the damage multiplier and the effect kind, and spends the buff.
+local function spendBuff(character: Model?): (number, string?)
+	local b = character and buffs[character]
+	if not b or not b.kind or now() >= b.untilAt then
+		return 1, nil
+	end
+	local kind = b.kind
+	b.kind = nil
+	if kind == "BlackFlash" then
+		b.chain += 1
+		return Combat.Block.BlackFlashMultiplier, kind
+	end
+	b.chain = 0
+	return Combat.Block.CritMultiplier, kind
+end
+
 -- Blocked hit: chip damage, guard damage, maybe a guard break. Returns the result.
 local function blocked(attacker: Player?, target: Model, root: BasePart, humanoid: Humanoid, hit: Hit): HitResult
 	local f = StateService.Get(target)
@@ -214,7 +258,7 @@ local function blocked(attacker: Player?, target: Model, root: BasePart, humanoi
 end
 
 -- The ONE damage path. Returns true if the hit landed (blocked hits count as landed), plus why.
-function CombatService.ApplyHit(attacker: Player, target: Model, hit: Hit): (boolean, HitResult)
+function CombatService.ApplyHit(attacker: Player?, target: Model, hit: Hit): (boolean, HitResult)
 	local humanoid = target:FindFirstChildOfClass("Humanoid")
 	local root = rootOf(target)
 	if not humanoid or not root or humanoid.Health <= 0 or not StateService.Get(target) then
@@ -223,7 +267,7 @@ function CombatService.ApplyHit(attacker: Player, target: Model, hit: Hit): (boo
 	if type(hit.damage) ~= "number" or hit.damage ~= hit.damage or hit.damage < 0 then
 		return false, "Invalid"
 	end
-	local attackerCharacter = attacker and attacker.Character
+	local attackerCharacter = (if attacker then attacker.Character else nil) or hit.attackerModel
 	if attackerCharacter == target then
 		return false, "Invalid"
 	end
@@ -250,6 +294,18 @@ function CombatService.ApplyHit(attacker: Player, target: Model, hit: Hit): (boo
 	if f and f.state == "Blocking" and not hit.guardBreak then
 		local held = f.blockStartedAt > 0 and now() - f.blockStartedAt >= Combat.Block.Startup
 		local origin = hit.origin or (if attackerRoot then attackerRoot.Position else root.Position)
+		-- Perfect block: an M1 from the front landing right after the block began is stopped entirely
+		-- (no damage, no guard cost) and buffs the blocker's next M1.
+		if
+			not ability
+			and f.blockStartedAt > 0
+			and now() - f.blockStartedAt <= Combat.Block.PerfectWindow
+			and fromFront(root, origin)
+		then
+			grantBuff(target)
+			hitEffect:FireAllClients(target, hit.abilityId, root.Position, "PerfectBlock", attackerCharacter)
+			return true, "Blocked"
+		end
 		if held and fromFront(root, origin) then
 			local result = blocked(attacker, target, root, humanoid, hit)
 			return true, result
@@ -258,6 +314,13 @@ function CombatService.ApplyHit(attacker: Player, target: Model, hit: Hit): (boo
 
 	-- 5. Damage with combo scaling.
 	local scale = StateService.RegisterComboHit(target)
+	local hitKind = hit.fxKind or "Hit"
+	if not ability and not hit.fxKind then
+		-- An M1 after a perfect block hits much harder (Critical / Black Flash).
+		local multiplier, buffKind = spendBuff(attackerCharacter)
+		scale *= multiplier
+		hitKind = buffKind or hitKind
+	end
 	humanoid:TakeDamage(hit.damage * scale)
 	noteDamage(target, attacker)
 	if ability and hit.castId then
@@ -307,7 +370,7 @@ function CombatService.ApplyHit(attacker: Player, target: Model, hit: Hit): (boo
 		push(target, root, Vector3.zero, 0, hit.hang) -- keep it hanging where it is
 	end
 
-	hitEffect:FireAllClients(target, hit.abilityId, root.Position, "Hit", attackerCharacter)
+	hitEffect:FireAllClients(target, hit.abilityId, root.Position, hitKind, attackerCharacter)
 	return true, "Hit"
 end
 
@@ -503,6 +566,31 @@ function CombatService.AbilityHit(
 	return CombatService.ApplyHit(player, target, hit)
 end
 
+-- ===== Wall combo =====
+-- A Knockback / Downslam finisher with a wall right behind the target arms it for a moment: the
+-- attacker's next FRONT dash (see onDash) hits the target again for a share of their MaxHealth.
+type WallArm = { target: Model, untilAt: number }
+local wallArmed: { [Model]: WallArm } = {} -- [attacker character]
+local wallReadyAt: { [Model]: number } = {} -- [attacker character] cooldown
+
+local function armWallCombo(attacker: Model, target: Model)
+	local aRoot, tRoot = rootOf(attacker), rootOf(target)
+	if not aRoot or not tRoot then
+		return
+	end
+	local away = flat(tRoot.Position - aRoot.Position)
+	if away == Vector3.zero then
+		away = flat(aRoot.CFrame.LookVector)
+	end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { attacker, target }
+	params.CollisionGroup = "Fighters"
+	if workspace:Raycast(tRoot.Position, away * Combat.WallCombo.Distance, params) then
+		wallArmed[attacker] = { target = target, untilAt = now() + Combat.WallCombo.Window }
+	end
+end
+
 -- ===== M1 string =====
 -- Hits 1–3, then hit 4 = finisher: in the air (jumped) → Downslam, S held → Ground Smash,
 -- otherwise Knockback. So the Downslam is M1 ×3, jump, M1.
@@ -549,7 +637,7 @@ end
 -- Runs one accepted swing: wait for the hit frame, look for a target during the active frames,
 -- apply the hit. Every step re-checks that the swing is still current (not interrupted).
 local function resolveSwing(
-	player: Player,
+	player: Player?,
 	character: Model,
 	chain: Chain,
 	id: number,
@@ -621,11 +709,13 @@ local function resolveSwing(
 			damage = cfg.Damage[index],
 			stun = cfg.Hitstun,
 			abilityId = `M1_{index}`,
+			attackerModel = character,
 		})
 		return
 	end
 	local fcfg = Combat.Finishers[finisher]
-	CombatService.ApplyHit(player, target, {
+	local _, result = CombatService.ApplyHit(player, target, {
+		attackerModel = character,
 		damage = fcfg.Damage,
 		ragdoll = fcfg.Ragdoll,
 		ragdollCancellable = fcfg.CanRagdollCancel,
@@ -634,22 +724,27 @@ local function resolveSwing(
 		guardDamage = Combat.Block.FinisherGuardDamage,
 		abilityId = if finisher == "Knockback" then "M1_4" else `M1_{finisher}`,
 	})
+	if result == "Hit" and (finisher == "Knockback" or finisher == "Downslam") then
+		armWallCombo(character, target)
+	end
 end
 
 local FINISHER_BY_INPUT: { [string]: string } = { None = "Knockback", Air = "Downslam", S = "GroundSmash" }
 
-local function onM1(player: Player, aim: Vector3, finisherInput: string, seq: number)
-	local character = player.Character
+-- One M1 press for a fighter: a Player (their remote), or an NPC training dummy (player = nil, see
+-- NpcM1). Same rules either way. Returns true when the swing started.
+local function runM1(player: Player?, character: Model, aim: Vector3, finisherInput: string, seq: number): boolean
 	local root = rootOf(character)
-	if not character or not root then
-		return
+	if not root then
+		return false
 	end
 	local cfg = Combat.M1
 	local t = now()
-	local chain = chains[player]
+	local key: Instance = player or character
+	local chain = chains[key]
 	if not chain or chain.character ~= character then
 		chain = newChain(character)
-		chains[player] = chain
+		chains[key] = chain
 	end
 	local function reject(reason: string)
 		-- Absolute server times (the client compares them with workspace:GetServerTimeNow()).
@@ -659,18 +754,18 @@ local function onM1(player: Player, aim: Vector3, finisherInput: string, seq: nu
 
 	if not StateService.Can(character, "M1") then
 		reject("State")
-		return
+		return false
 	end
 	if t < chain.nextAllowedAt then
 		reject("TooSoon")
-		return
+		return false
 	end
 	-- Hit 4 gets a longer window (time to jump for the Downslam). Plus slack for network jitter.
 	local window = if chain.index == cfg.ChainLength - 1 then cfg.FinisherWindow else cfg.ChainResetSeconds
 	local dropped = t - chain.lastAt > window + cfg.ServerTolerance
 	if dropped and chain.index > 0 and chain.index < cfg.ChainLength and t - chain.lastAt < cfg.RestartDelay then
 		reject("Restart") -- string dropped before hit 4: wait before starting again (no M1, pause, M1 stun-locks)
-		return
+		return false
 	end
 	if dropped or chain.index >= cfg.ChainLength then
 		chain.index = 0
@@ -694,12 +789,26 @@ local function onM1(player: Player, aim: Vector3, finisherInput: string, seq: nu
 	reply(player, "M1", seq, true, index, finisher or "", t + StateService.M1LockedFor(character))
 
 	task.spawn(resolveSwing, player, character, chain, id, seq, index, finisher, validAim(root, aim), t)
+	return true
+end
+
+local function onM1(player: Player, aim: Vector3, finisherInput: string, seq: number)
+	local character = player.Character
+	if character then
+		runM1(player, character, aim, finisherInput, seq)
+	end
+end
+
+-- NPC training dummies (TrainingDummyService) throw the same M1 string through the same pipeline:
+-- same timings, block / perfect block, stun, finishers. Face the target before calling.
+function CombatService.NpcM1(character: Model, aim: Vector3): boolean
+	return runM1(nil, character, aim, "None", 0)
 end
 
 -- ===== Block =====
 
-local function onSetBlock(player: Player, down: boolean)
-	local character = player.Character
+-- Raise / lower the block for a Player (their remote) or an NPC dummy (player = nil, see NpcBlock).
+local function setBlock(player: Player?, character: Model?, down: boolean)
 	local f = character and StateService.Get(character)
 	if not character or not f then
 		return
@@ -719,6 +828,15 @@ local function onSetBlock(player: Player, down: boolean)
 	elseif f.state == "Blocking" then
 		StateService.Set(character, "Idle")
 	end
+end
+
+local function onSetBlock(player: Player, down: boolean)
+	setBlock(player, player.Character, down)
+end
+
+-- NPC training dummies hold / drop their block through the same rules (startup, guard, guard break).
+function CombatService.NpcBlock(character: Model, down: boolean)
+	setBlock(nil, character, down)
 end
 
 -- ===== Movement watch (dashes are moved by the client; the server checks distance) =====
@@ -812,8 +930,40 @@ local function onDash(player: Player, kind: string, direction: Vector3)
 	dashKinds[character] = kind
 	StateService.Set(character, "Dashing", cfg.Duration)
 	StateService.GiveIFrames(character, cfg.IFrames)
-	CombatService.WatchMovement(player, root, cfg.Distance + dcfg.DistanceSlack, cfg.Duration + 0.3)
+	-- A side dash covers less ground the lower the health is (the client scales its dash the same way).
+	local distance = cfg.Distance
+	if DASH_CONFIG[kind] == "Side" then
+		distance *= Combat.SideDashScale(humanoid.Health / humanoid.MaxHealth)
+	end
+	CombatService.WatchMovement(player, root, distance + dcfg.DistanceSlack, cfg.Duration + 0.3)
 	reply(player, "Dash", true, kind, readyAt[cfg.Group])
+
+	-- Wall combo: a front dash right after a finisher that pinned the target against a wall.
+	local arm = wallArmed[character]
+	if kind == "Front" and arm then
+		wallArmed[character] = nil
+		local wc = Combat.WallCombo
+		local targetRoot = rootOf(arm.target)
+		local targetHumanoid = arm.target:FindFirstChildOfClass("Humanoid")
+		if
+			targetRoot
+			and targetHumanoid
+			and targetHumanoid.Health > 0
+			and t <= arm.untilAt + dcfg.ServerTolerance
+			and t >= (wallReadyAt[character] or 0)
+			and (targetRoot.Position - root.Position).Magnitude <= wc.MaxRange
+		then
+			local _, result = CombatService.ApplyHit(player, arm.target, {
+				damage = wc.DamagePercent * targetHumanoid.MaxHealth,
+				stun = wc.Stun,
+				abilityId = "M1_WallCombo",
+				fxKind = "WallCombo",
+			})
+			if result == "Hit" then
+				wallReadyAt[character] = t + wc.Cooldown
+			end
+		end
+	end
 end
 
 -- ===== Ragdoll cancel (escape) =====
@@ -939,6 +1089,10 @@ function CombatService.Start()
 	StateService.OnRemoved(function(model)
 		dashKinds[model] = nil
 		bleeds[model] = nil
+		buffs[model] = nil
+		chains[model] = nil
+		wallArmed[model] = nil
+		wallReadyAt[model] = nil
 		task.delay(Combat.KOCreditSeconds, function()
 			lastHitBy[model] = nil -- (Died reads it first)
 		end)

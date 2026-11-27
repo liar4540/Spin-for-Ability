@@ -201,4 +201,69 @@ function Knockback.Step(root: BasePart, direction: Vector3, distance: number, se
 	end)
 end
 
+-- Side dash around an enemy: eases out like Step, but the path curves around `targetRoot`, holding the
+-- starting radius (`pull` = how hard it corrects drift), and the body keeps facing the target. The arc
+-- length covered is `distance`, so the server's distance check (which measures straight-line movement)
+-- is never exceeded. Falls back to a plain Step when the target is too close to orbit.
+function Knockback.Orbit(root: BasePart, targetRoot: BasePart, direction: Vector3, distance: number, seconds: number, pull: number)
+	if motions[root] then
+		return
+	end
+	local ground = Vector3.new(1, 0, 1)
+	local offset0 = (targetRoot.Position - root.Position) * ground
+	local radius = offset0.Magnitude
+	if radius < 1 or seconds <= 0 then
+		Knockback.Step(root, direction, distance, seconds)
+		return
+	end
+	local spin = if direction:Dot(offset0.Unit:Cross(Vector3.yAxis)) >= 0 then 1 else -1
+	local step = mover(root, "StepVelocity")
+	step.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
+	step.PrimaryTangentAxis = Vector3.xAxis
+	step.SecondaryTangentAxis = Vector3.zAxis
+	step.MaxForce = 2e4 -- soft, so walls still stop it
+
+	local humanoid = if root.Parent then root.Parent:FindFirstChildOfClass("Humanoid") else nil
+	local autoRotate = if humanoid then humanoid.AutoRotate else true
+	if humanoid then
+		humanoid.AutoRotate = false -- the orbit turns the body itself
+	end
+
+	local token = {}
+	stepTokens[root] = token
+	local v0 = 2 * distance / seconds
+	local started = os.clock()
+	step.PlaneVelocity = Vector2.zero
+	step.Enabled = true
+
+	local connection: RBXScriptConnection
+	local function done()
+		connection:Disconnect()
+		if humanoid then
+			humanoid.AutoRotate = autoRotate
+		end
+		if stepTokens[root] == token then
+			stepTokens[root] = nil
+			step.Enabled = false
+		end
+	end
+	connection = RunService.Heartbeat:Connect(function(dt)
+		local alpha = (os.clock() - started) / seconds
+		if stepTokens[root] ~= token or not root.Parent or not targetRoot.Parent or alpha >= 1 then
+			done()
+			return
+		end
+		local offset = (targetRoot.Position - root.Position) * ground
+		if offset.Magnitude < 1e-3 then
+			return
+		end
+		local toTarget = offset.Unit
+		local velocity = toTarget:Cross(Vector3.yAxis) * spin * (v0 * (1 - alpha)) + toTarget * (offset.Magnitude - radius) * pull
+		step.PlaneVelocity = Vector2.new(velocity.X, velocity.Z)
+		-- turn toward the target smoothly (frame-rate independent)
+		local turn = 1 - math.exp(-18 * dt)
+		root.CFrame = root.CFrame:Lerp(CFrame.lookAt(root.Position, root.Position + toTarget), turn)
+	end)
+end
+
 return Knockback

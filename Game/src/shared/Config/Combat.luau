@@ -174,6 +174,13 @@ local Combat = {
 		GuardBreakStunSeconds = 1.5,
 		BlockDisabledAfterBreak = 3,
 		Startup = 0.1, -- block must be held this long before it stops anything (no panic blocks)
+		-- Perfect block (from the friend's combat system): an M1 that lands this soon after the block started
+		-- (from the front) is stopped completely, and the blocker's NEXT M1 is buffed.
+		PerfectWindow = 0.25,
+		CritMultiplier = 3, -- next M1 after a perfect block
+		BlackFlashMultiplier = 6, -- next M1 after a perfect block while already buffed
+		BuffSeconds = 4, -- the buff waits this long for an M1
+		BlackFlashMaxChain = 2, -- consecutive Black Flashes allowed (resets with a Critical or when the buff lapses)
 		BlockedPushback = 6, -- studs/s nudge back on a blocked hit (feedback, not a combo tool)
 	},
 
@@ -184,12 +191,28 @@ local Combat = {
 		Side = { Distance = 14, Duration = 0.25, IFrames = 0.2, Cooldown = 2.0, Group = "SideBack" },
 		Back = { Distance = 16, Duration = 0.3, IFrames = 0.1, Cooldown = 2.0, Group = "SideBack" },
 		WallStop = 2, -- the client stops this far in front of a wall
+		-- Side dash (friend's combat system): curves around the nearest enemy within OrbitRange, holding its
+		-- starting radius, and covers less ground the lower your health is (SideMinScale at 0 health).
+		OrbitRange = 20,
+		OrbitPull = 8, -- how hard the orbit holds its starting radius
+		SideMinScale = 0.4,
 		DistanceSlack = 3, -- extra studs the server allows (lag, slopes)
 		ServerTolerance = 0.15, -- cooldown slack for jitter
 		-- A front dash can be cancelled into a side dash (uses the side cooldown).
 		FrontToSideCancel = true,
 		-- Dash during an M1's startup cancels that M1 (it never lands). Dash after a hit is free.
 		CancelsM1Startup = true,
+	},
+
+	-- Wall combo (friend's combat system): a Knockback or Downslam finisher with a wall right behind the
+	-- target arms it; a FRONT dash that starts within Window seconds hits the target again.
+	WallCombo = {
+		Distance = 4, -- studs behind the target that count as a wall
+		Window = 0.2, -- the forward dash must start this soon after the finisher
+		DamagePercent = 0.12, -- of the target's MaxHealth
+		Stun = 1.0,
+		Cooldown = 5,
+		MaxRange = 15, -- the target must still be this close when the dash starts
 	},
 
 	RagdollCancel = {
@@ -213,5 +236,12 @@ local Combat = {
 
 	DebugStateLabels = true, -- shows each fighter's state over their head (Studio only)
 }
+
+-- Side dash distance multiplier for a health fraction (1 = full health): SideMinScale at 0, linear up to 1.
+-- The client scales its dash with this and the server checks the same number.
+function Combat.SideDashScale(healthFraction: number): number
+	local min = Combat.Dash.SideMinScale
+	return min + (1 - min) * math.clamp(healthFraction, 0, 1)
+end
 
 return Combat
