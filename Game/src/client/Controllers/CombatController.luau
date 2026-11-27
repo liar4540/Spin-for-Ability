@@ -37,8 +37,14 @@ local FLASH_COLORS: { [string]: Color3 } = {
 	Blocked = Color3.fromRGB(90, 170, 255),
 	GuardBreak = Color3.fromRGB(220, 240, 255),
 	Escape = Color3.fromRGB(200, 230, 255),
+	-- from the friend's combat system
+	PerfectBlock = Color3.fromRGB(255, 230, 80),
+	Critical = Color3.fromRGB(255, 80, 80),
+	BlackFlash = Color3.fromRGB(120, 0, 0),
+	WallCombo = Color3.fromRGB(180, 80, 255),
 }
 local HEAVY_HITS: { [string]: boolean } = { M1_4 = true, M1_Downslam = true, M1_GroundSmash = true }
+local HEAVY_KINDS: { [string]: boolean } = { GuardBreak = true, Critical = true, BlackFlash = true, WallCombo = true, PerfectBlock = true }
 local LAG_MARGIN = 1.5 -- same as HitboxService, for the local hit prediction
 local PREDICTED_FLASH_SECONDS = 0.5 -- the server's echo of a hit we already flashed is skipped
 
@@ -444,6 +450,33 @@ end
 
 local DASH_STATES: { [string]: boolean } = { Idle = true, Attacking = true, EndLag = true, Dashing = true }
 
+-- The closest living fighter (player or training dummy) within OrbitRange, for the orbiting side dash.
+local function nearestEnemyRoot(character: Model, root: BasePart): BasePart?
+	local best: BasePart? = nil
+	local bestDistance = Combat.Dash.OrbitRange
+	local function consider(model: Instance?)
+		if not model or model == character or not model:IsA("Model") then
+			return
+		end
+		local other = model:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local humanoid = model:FindFirstChildOfClass("Humanoid")
+		if not other or not humanoid or humanoid.Health <= 0 then
+			return
+		end
+		local distance = ((other.Position - root.Position) * Vector3.new(1, 0, 1)).Magnitude
+		if distance <= bestDistance then
+			best, bestDistance = other, distance
+		end
+	end
+	for _, other in Players:GetPlayers() do
+		consider(other.Character)
+	end
+	for _, dummy in CollectionService:GetTagged("TrainingDummy") do
+		consider(dummy)
+	end
+	return best
+end
+
 local function onDash()
 	local character = player.Character
 	local root = rootOf(character)
@@ -481,15 +514,29 @@ local function onDash()
 		cancelSwingAnimation(newest.track)
 	end
 
+	-- A side dash covers less ground at low health (the server checks the same scale).
+	local full = cfg.Distance
+	local isSide = kind == "Left" or kind == "Right"
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if isSide and humanoid and humanoid.MaxHealth > 0 then
+		full *= Combat.SideDashScale(humanoid.Health / humanoid.MaxHealth)
+	end
+
 	-- Stop short of walls.
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { character }
 	params.CollisionGroup = "Fighters"
-	local hit = workspace:Raycast(root.Position, dir * (cfg.Distance + Combat.Dash.WallStop), params)
-	local distance = if hit then math.max(0, hit.Distance - Combat.Dash.WallStop) else cfg.Distance
+	local hit = workspace:Raycast(root.Position, dir * (full + Combat.Dash.WallStop), params)
+	local distance = if hit then math.max(0, hit.Distance - Combat.Dash.WallStop) else full
 	if distance > 0.5 then
-		Knockback.Step(root, dir, distance, cfg.Duration)
+		-- A side dash with an enemy close by curves around them instead of going straight.
+		local orbitRoot = if isSide then nearestEnemyRoot(character, root) else nil
+		if orbitRoot then
+			Knockback.Orbit(root, orbitRoot, dir, distance, cfg.Duration, Combat.Dash.OrbitPull)
+		else
+			Knockback.Step(root, dir, distance, cfg.Duration)
+		end
 	end
 	dashRemote:FireServer(kind, dir)
 end
@@ -701,7 +748,7 @@ function CombatController.Start()
 			end
 			-- Camera shake only when we're involved.
 			if mine and (model == mine or attacker == mine) and not skip then
-				local heavy = HEAVY_HITS[abilityId] or hitKind == "GuardBreak"
+				local heavy = HEAVY_HITS[abilityId] or HEAVY_KINDS[hitKind]
 				shake(if heavy then 0.6 else 0.15, if heavy then 0.25 else 0.08)
 			end
 		end

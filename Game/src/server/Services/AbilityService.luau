@@ -676,7 +676,9 @@ local function onUseAbility(player: Player, slot: number, aim: Vector3, pick: Mo
 		reject("State")
 		return
 	end
-	perPlayer[def.Id] = now + def.Cooldown
+	-- Studio-only test toggle (the "No cooldown" button): never applies in the live game.
+	local devNoCooldown = RunService:IsStudio() and player:GetAttribute("DevNoCooldown") == true
+	perPlayer[def.Id] = now + (if devNoCooldown then 0 else def.Cooldown)
 
 	-- Everyone else plays the animation + VFX (the attacker already did, instantly).
 	for _, other in Players:GetPlayers() do
@@ -811,6 +813,19 @@ function AbilityService.Start()
 			return true
 		end
 		hook.Parent = game:GetService("ServerStorage"):FindFirstChild("Dev") or game:GetService("ServerStorage")
+
+		-- Studio-only "No cooldown" test button (client: AbilityController). The remote is only created
+		-- in Studio, so it never exists in the live game; it flips the player's DevNoCooldown attribute.
+		local devToggle = Instance.new("RemoteEvent")
+		devToggle.Name = "DevNoCooldown"
+		devToggle.OnServerEvent:Connect(function(player: Player)
+			local on = player:GetAttribute("DevNoCooldown") ~= true
+			player:SetAttribute("DevNoCooldown", on)
+			if on then
+				readyAt[player] = nil -- anything already cooling down is ready now
+			end
+		end)
+		devToggle.Parent = ReplicatedStorage:WaitForChild("Remotes")
 	end
 
 	Players.PlayerRemoving:Connect(function(player)

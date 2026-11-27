@@ -8,6 +8,8 @@
 -- or explosions. v2 (user feedback 2026-11-27): the beam rebuilt like Blood Moon Slash - six solid,
 -- detailed layers (outer glow, plasma body, amber veins, flow streaks, crisp rim lines, white core)
 -- that ripple and breathe, plus a few thin BLUE lines coiling round it as they race along.
+-- v3 (user request 2026-11-27): the aura and the beam are now the user's Creator Store picks ("ui goku"
+-- aura, "Ultimate Kamehameha" beam) recoloured gold, on the same timeline, aim, length and stop logic.
 -- Lessons from the earlier skills: layered, moving effects (flipbook flames, ribbons,
 -- spinning rings, flicker), no pastel wash, slow-motion checks (TimeScale).
 --
@@ -70,9 +72,6 @@ local CONFIG = {
 		RING_EVERY = 0.09,
 		RING_SPEED = 150,
 		SHAKE = 0.12, -- studs of camera tremble (caster only)
-		RIPPLE = 0.9, -- studs the beam's middle sways (CurveSize)
-		RIPPLE_HZ = 1.6,
-		BREATHE = 0.05, -- per-layer width breathing
 	},
 	COILS = {
 		EVERY = 0.32, -- a new set of strands this often
@@ -91,6 +90,7 @@ type Cast = {
 	Stopped: boolean,
 	Fired: boolean,
 	Connections: { RBXScriptConnection },
+	Owned: { Instance }, -- things parented into the character (the aura); destroyed with the cast
 	Stop: (() -> ())?,
 }
 
@@ -104,7 +104,9 @@ local function slowed(inst: Instance)
 	if StarCannonVFX.TimeScale == 1 then
 		return
 	end
-	for _, d in inst:GetDescendants() do
+	local all = inst:GetDescendants()
+	table.insert(all, inst)
+	for _, d in all do
 		if d:IsA("ParticleEmitter") then
 			d.TimeScale = StarCannonVFX.TimeScale
 		elseif d:IsA("Trail") then
@@ -241,9 +243,36 @@ local function charge(cast: Cast, character: Model, root: BasePart)
 	emitters(orb, true)
 	local orbLight = orb:FindFirstChild("Light") :: PointLight?
 
-	local aura = clone("Aura", cast) :: BasePart
-	emitters(aura, true, c.AURA.START_RATE)
-	local auraLight = aura:FindFirstChild("Light") :: PointLight?
+	-- the Creator Store aura: its emitters go straight into the matching body parts, so the flames
+	-- follow every limb (one template Folder per part name; HumanoidRootPart holds the foot flames)
+	local auraEmitters: { ParticleEmitter } = {}
+	local auraLight: PointLight? = nil
+	local auraTemplate = templates():FindFirstChild("Aura")
+	for _, slot in (if auraTemplate then auraTemplate:GetChildren() else {}) do
+		local bodyPart = character:FindFirstChild(slot.Name)
+		if bodyPart and bodyPart:IsA("BasePart") then
+			for _, item in slot:GetChildren() do
+				local copy = item:Clone()
+				slowed(copy)
+				copy.Parent = bodyPart
+				table.insert(cast.Owned, copy)
+				if copy:IsA("PointLight") then
+					copy.Brightness = 0
+					auraLight = copy
+				end
+				local list = copy:GetDescendants()
+				table.insert(list, copy)
+				for _, e in list do
+					if e:IsA("ParticleEmitter") then
+						e:SetAttribute("BaseRate", e.Rate)
+						e.Rate = scale(e.Rate) * c.AURA.START_RATE
+						e.Enabled = true
+						table.insert(auraEmitters, e)
+					end
+				end
+			end
+		end
+	end
 	local feet = ground(root.Position, { character })
 	local groundRing = clone("Ground", cast) :: BasePart
 	groundRing.CFrame = CFrame.new(feet + Vector3.new(0, 0.08, 0))
@@ -316,12 +345,11 @@ local function charge(cast: Cast, character: Model, root: BasePart)
 
 		-- aura follows the body; builds over the charge, holds while firing
 		local build = if releasedAt then 1 else 0.35 + 0.65 * k
-		aura.CFrame = root.CFrame * CFrame.new(0, -0.3, 0)
 		if auraLight then
 			auraLight.Brightness = c.AURA.LIGHT * build * pulse
 		end
-		for _, e in aura:GetChildren() do
-			if e:IsA("ParticleEmitter") and e.Enabled then
+		for _, e in auraEmitters do
+			if e.Enabled then
 				e.Rate = scale((e:GetAttribute("BaseRate") :: number?) or e.Rate) * build
 			end
 		end
@@ -369,7 +397,9 @@ local function charge(cast: Cast, character: Model, root: BasePart)
 			end
 		end,
 		Finish = function(fade: number)
-			emitters(aura, false)
+			for _, e in auraEmitters do
+				e.Enabled = false
+			end
 			emitters(groundRing, false)
 			for _, img in groundImages do
 				tween(img, fade, { ImageTransparency = 1 })
@@ -391,31 +421,66 @@ end
 
 local function beam(cast: Cast, character: Model, origin: Vector3, direction: Vector3, length: number, isLocal: boolean)
 	local c = CONFIG.BEAM
-	local carrier = clone("Beam", cast) :: BasePart
-	carrier.CFrame = CFrame.lookAt(origin, origin + direction)
-	local a0 = Instance.new("Attachment")
-	a0.Parent = carrier
-	local a1 = Instance.new("Attachment")
-	a1.Parent = carrier
-	-- X axes sideways (perpendicular to the beam), so CurveSize sways the middle: the ripple
-	local side = direction:Cross(Vector3.yAxis)
-	side = if side.Magnitude > 0.01 then side.Unit else Vector3.xAxis
-	local swayAxis = (side + Vector3.yAxis * 0.6).Unit
-	a0.WorldCFrame = CFrame.fromMatrix(origin, swayAxis, swayAxis:Cross(direction))
-	a1.WorldCFrame = CFrame.fromMatrix(origin, swayAxis, swayAxis:Cross(direction))
-	local layers: { Beam } = {}
-	local widths: { [Beam]: number } = {}
-	for _, b in carrier:GetChildren() do
-		if b:IsA("Beam") then
-			b.Attachment0 = a0
-			b.Attachment1 = a1
-			b.Enabled = true
-			widths[b] = b.Width0
-			table.insert(layers, b)
+	-- The Creator Store beam (recoloured gold): built pointing down -Z from its Origin at the hands, a
+	-- fixed length. Record its pieces in that space, then every frame stretch it to the reach: the long
+	-- tubes (attribute Stretch) grow, every attachment past the muzzle slides along, the muzzle stays.
+	local model = clone("Beam", cast) :: Model
+	local native = (model:GetAttribute("Length") :: number?) or 70
+	local home = model:GetPivot()
+	type Tube = { Part: BasePart, Near: number, Far: number, Size: Vector3, Rotation: CFrame }
+	type Att = { Attachment: Attachment, Position: Vector3 }
+	local tubes: { Tube } = {}
+	local atts: { Att } = {}
+	local storeBeams: { Beam } = {}
+	local beamWidths: { [Beam]: Vector2 } = {}
+	-- The store bursts (swooshes, dots, rings) fire at up to ~400 studs/s and would fly 180-290 studs,
+	-- far past the 80-stud range: their speed is capped every frame so no particle travels past the reach.
+	type Burst = { Emitter: ParticleEmitter, Speed: NumberRange, Travel: number }
+	local bursts: { Burst } = {}
+	for _, d in model:GetDescendants() do
+		if d:IsA("ParticleEmitter") and d.Speed.Max * d.Lifetime.Max > 1 then
+			table.insert(bursts, { Emitter = d, Speed = d.Speed, Travel = d.Speed.Max * d.Lifetime.Max })
+		end
+		if d:IsA("BasePart") and d:GetAttribute("Stretch") then
+			local rel = home:ToObjectSpace(d.CFrame)
+			local half = d.Size.Z / 2
+			table.insert(tubes, { Part = d, Near = -rel.Z - half, Far = -rel.Z + half, Size = d.Size, Rotation = rel.Rotation })
+		elseif d:IsA("Attachment") then
+			table.insert(atts, { Attachment = d, Position = home:PointToObjectSpace(d.WorldPosition) })
+		elseif d:IsA("Beam") then
+			table.insert(storeBeams, d)
+			beamWidths[d] = Vector2.new(d.Width0, d.Width1)
 		end
 	end
-	local sparks = carrier:FindFirstChild("Sparks") :: BasePart
-	sparks.Parent = cast.Folder
+	local pivot = CFrame.lookAt(origin, origin + direction)
+	model:PivotTo(pivot)
+	emitters(model, true)
+	local MUZZLE = 4 -- studs at the hands that keep their shape
+	local function stretch(reach: number, width: number)
+		local k = math.max(reach - MUZZLE, 0.05) / (native - MUZZLE)
+		local function along(d: number): number
+			return if d <= MUZZLE then d else MUZZLE + (d - MUZZLE) * k
+		end
+		for _, tube in tubes do
+			local near, far = along(tube.Near), along(tube.Far)
+			tube.Part.Size = Vector3.new(tube.Size.X * width, tube.Size.Y * width, math.max(far - near, 0.05))
+			tube.Part.CFrame = pivot * CFrame.new(0, 0, -(near + far) / 2) * tube.Rotation
+		end
+		for _, a in atts do
+			local p = a.Position
+			a.Attachment.WorldPosition = pivot * Vector3.new(p.X * width, p.Y * width, -along(-p.Z))
+		end
+		for b, w in beamWidths do
+			b.Width0 = w.X * width
+			b.Width1 = w.Y * width
+		end
+		for _, burst in bursts do
+			local f = math.min(1, reach / burst.Travel)
+			burst.Emitter.Speed = NumberRange.new(burst.Speed.Min * f, burst.Speed.Max * f)
+		end
+	end
+	stretch(0.1, 0.6)
+	local sparks = clone("Sparks", cast) :: BasePart
 	emitters(sparks, true)
 
 	local muzzle = clone("Muzzle", cast) :: BasePart
@@ -462,17 +527,8 @@ local function beam(cast: Cast, character: Model, origin: Vector3, direction: Ve
 		end
 		local fade = if fadeFrom then math.clamp((t - fadeFrom) / CONFIG.FADE, 0, 1) else 0
 		local reach = length * math.clamp(t / c.EXTEND, 0, 1)
-		a1.WorldPosition = origin + direction * reach
 		local flicker = 1 + c.FLICKER * math.sin(t * 47) + c.FLICKER * 0.6 * math.sin(t * 83)
-		local sway = c.RIPPLE * math.sin(t * c.RIPPLE_HZ * 2 * math.pi) * math.clamp(reach / 30, 0, 1)
-		for li, b in layers do
-			local breathe = 1 + c.BREATHE * math.sin(t * 9 + li * 1.3)
-			local w = widths[b] * flicker * breathe * (1 - fade) * (0.6 + 0.4 * math.clamp(t / c.EXTEND, 0, 1))
-			b.Width0 = w * 0.75 -- a touch narrower at the hands
-			b.Width1 = w
-			b.CurveSize0 = sway * 1.5 -- a gentle S-ripple of about a stud (not scaled by the length)
-			b.CurveSize1 = -sway
-		end
+		stretch(math.max(reach, 0.1), flicker * (1 - fade) * (0.6 + 0.4 * math.clamp(t / c.EXTEND, 0, 1)))
 		-- blue coils: a few thin lines spiralling round the beam as they race along it
 		local k = CONFIG.COILS
 		if not fadeFrom and t - lastCoil >= k.EVERY then
@@ -561,9 +617,13 @@ local function beam(cast: Cast, character: Model, origin: Vector3, direction: Ve
 			if humanoid and isLocal then
 				humanoid.CameraOffset = Vector3.zero
 			end
-			for _, b in layers do
+			for _, b in storeBeams do
 				b.Enabled = false
 			end
+			for _, tube in tubes do
+				tube.Part.Transparency = 1
+			end
+			emitters(model, false)
 			emitters(sparks, false)
 			emitters(muzzle, false)
 			local motes = sparks:FindFirstChild("Motes") :: ParticleEmitter?
@@ -601,6 +661,9 @@ local function endCast(cast: Cast)
 	cast.Ended = true
 	for _, conn in cast.Connections do
 		conn:Disconnect()
+	end
+	for _, inst in cast.Owned do
+		inst:Destroy()
 	end
 	if active[cast.Character] == cast then
 		active[cast.Character] = nil
@@ -653,7 +716,7 @@ function StarCannonVFX.Play(character: Model, aim: Vector3, isLocal: boolean, op
 	local f = Instance.new("Folder")
 	f.Name = `StarCannon_{character.Name}`
 	f.Parent = folder()
-	local cast: Cast = { Folder = f, Character = character, Ended = false, Stopped = false, Fired = false, Connections = {} }
+	local cast: Cast = { Folder = f, Character = character, Ended = false, Stopped = false, Fired = false, Connections = {}, Owned = {} }
 	active[character] = cast
 	Debris:AddItem(f, s(CONFIG.FIRE_AT + CONFIG.BEAM_SECONDS + CONFIG.FADE + CONFIG.CLEANUP_AFTER) + 2)
 
@@ -739,7 +802,7 @@ function StarCannonVFX.Impact(_attacker: Model, hits: { { Target: Model, Positio
 	f.Name = "StarCannon_Hit"
 	f.Parent = folder()
 	Debris:AddItem(f, 3)
-	local cast: Cast = { Folder = f, Character = _attacker, Ended = false, Stopped = false, Fired = false, Connections = {} }
+	local cast: Cast = { Folder = f, Character = _attacker, Ended = false, Stopped = false, Fired = false, Connections = {}, Owned = {} }
 	for _, hit in hits do
 		local root = hit.Target and hit.Target:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if root then

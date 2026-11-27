@@ -19,6 +19,7 @@ local ORDER = {
 	"ShopController",
 	"SettingsController",
 	"VFXTestController",
+	"ShiftLockController",
 }
 
 local loaded: { Controller } = {}

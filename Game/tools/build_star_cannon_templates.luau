@@ -4,13 +4,12 @@
 -- client/Abilities/StarCannonVFX clones, places and times these; tweak them in Studio freely.
 --   Orb          the star between the palms: white-hot ball + gold glow, a turning 4-point flare,
 --                sparks drawn in, a light; 3 Rings (flat, both faces) spin round it on different axes
---   Aura         gold-white flames, rising motes, streaks and ribbons round the body; Ground under the
---                feet: lifting dust, spinning rings; Ribbon = a trail the script spirals up the body;
---                Rock = a small stone the script levitates
---   Beam         v2 (user: "more detailed, less see-through", like Blood Moon): 6 Beam layers strung
---                between the hands and the end, back to front Outer (soft pale gold), Body (solid plasma),
---                Veins (dark amber streaks), Flow (bright streaks), Rim (crisp edge lines), Core (white);
---                Sparks = a box along the beam; Muzzle at the hands
+--   Aura         v3: the user's Creator Store aura (StoreSources.SaiyanAura) recoloured gold, as one
+--                Folder of emitters per body part; Ground under the feet: lifting dust, spinning rings;
+--                Ribbon = a trail the script spirals up the body; Rock = a store rock mesh it levitates
+--   Beam         v3: the user's Creator Store beam (StoreSources.KamehamehaBeam) recoloured gold and
+--                scaled 1.5x; the script stretches it to the real length. Sparks = a box along the
+--                beam; Muzzle = the light at the hands
 --   Coil         a thin BLUE line (Trail) the script spirals round the beam (user request)
 --   TravelRing   the big energy ring that runs down the beam (pooled)
 --   Impact       where the beam meets a wall / on each enemy hit
@@ -18,6 +17,7 @@
 -- Textures: Game/assets/vfx/_src/build_star_cannon_textures.py + shared glow / sparkle / flame / smoke.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 local StarterPlayer = game:GetService("StarterPlayer")
 
 local TEX = {
@@ -59,6 +59,41 @@ local function fx(part: BasePart)
 	part.CanTouch = false
 	part.CastShadow = false
 	part.Massless = true
+end
+
+-- The store aura and beam are blue: turn every value gold, keeping its brightness, so dark navy
+-- becomes dark amber and blue becomes yellow. minSat lifts pale tints (pale yellow read as white in
+-- daylight, the old washout lesson); grey tints on effects (the beam's sky swooshes) become pale gold.
+local GOLD_HUE = 0.13
+local BEAM_WIDTH_SCALE = 1.5 -- the store beam is ~8 wide; Star Cannon hits a 12-wide strip
+local AURA_MIN_SAT = 0.8 -- the aura reads yellow, not white, in daylight
+local function goldOf(c: Color3, minSat: number, tintGrey: boolean): Color3
+	local _, sat, val = c:ToHSV()
+	if sat < 0.08 then
+		if not tintGrey or val < 0.05 then
+			return c
+		end
+		return Color3.fromHSV(GOLD_HUE, 0.55, math.min(1, val * 1.6))
+	end
+	return Color3.fromHSV(GOLD_HUE, math.max(sat, minSat), val)
+end
+local function recolour(root: Instance, minSat: number?)
+	local all = root:GetDescendants()
+	table.insert(all, root)
+	local floor = minSat or 0
+	for _, d in all do
+		if d:IsA("ParticleEmitter") or d:IsA("Beam") or d:IsA("Trail") then
+			local keys = {}
+			for _, k in ((d :: any).Color :: ColorSequence).Keypoints do
+				table.insert(keys, ColorSequenceKeypoint.new(k.Time, goldOf(k.Value, floor, true)))
+			end
+			(d :: any).Color = ColorSequence.new(keys)
+		elseif d:IsA("BasePart") then
+			d.Color = goldOf(d.Color, floor, false)
+		elseif d:IsA("Light") then
+			d.Color = goldOf(d.Color, floor, false)
+		end
+	end
 end
 
 local function seq(points: { { number } }): NumberSequence
@@ -198,57 +233,57 @@ for i = 1, 3 do
 	ringPart(`OrbRing{i}`, 3, if i == 2 then WHITE else GOLD).Parent = folder
 end
 
--- ===== Aura =====
-local aura = part("Aura", Vector3.new(3.4, 5, 3.4))
-emitter(aura, "Flames", {
-	Texture = TEX.Flame,
-	FlipbookLayout = Enum.ParticleFlipbookLayout.Grid4x4,
-	FlipbookMode = Enum.ParticleFlipbookMode.OneShot,
-	Shape = Enum.ParticleEmitterShape.Box,
-	EmissionDirection = Enum.NormalId.Top,
-	Color = colors({ { 0, Color3.fromRGB(255, 225, 120) }, { 0.35, Color3.fromRGB(255, 180, 30) }, { 1, Color3.fromRGB(230, 140, 10) } }),
-	LightEmission = 0.5, -- gold, not a white blob
-	Brightness = 1.3,
-	Size = seq({ { 0, 2.4, 0.5 }, { 1, 4.5 } }), -- smaller / fainter didn't read in daylight
-	Transparency = seq({ { 0, 0.15 }, { 0.6, 0.35 }, { 1, 1 } }),
-	Lifetime = NumberRange.new(0.35, 0.6),
-	Rate = 75,
-	Speed = NumberRange.new(4, 8),
-	SpreadAngle = Vector2.new(12, 12),
-	Acceleration = Vector3.new(0, 6, 0),
-	Rotation = NumberRange.new(-10, 10),
-})
-emitter(aura, "Motes", {
-	Texture = TEX.Sparkle,
-	Shape = Enum.ParticleEmitterShape.Box,
-	EmissionDirection = Enum.NormalId.Top,
-	Color = colors({ { 0, WHITE }, { 1, GOLD } }),
-	LightEmission = 1,
-	Brightness = 3,
-	Size = seq({ { 0, 0 }, { 0.2, 0.45 }, { 1, 0 } }),
-	Lifetime = NumberRange.new(0.8, 1.4),
-	Rate = 30,
-	Speed = NumberRange.new(3, 7),
-	SpreadAngle = Vector2.new(20, 20),
-	RotSpeed = NumberRange.new(-90, 90),
-	ZOffset = 0.5,
-})
-emitter(aura, "Streaks", {
-	Texture = TEX.Wisp,
-	Shape = Enum.ParticleEmitterShape.Box,
-	EmissionDirection = Enum.NormalId.Top,
-	Orientation = Enum.ParticleOrientation.VelocityParallel,
-	Color = colors({ { 0, WHITE }, { 1, GOLD } }),
-	LightEmission = 0.6,
-	Brightness = 2,
-	Size = seq({ { 0, 1.4 }, { 1, 0.6 } }),
-	Transparency = seq({ { 0, 0.2 }, { 1, 1 } }),
-	Lifetime = NumberRange.new(0.3, 0.5),
-	Rate = 25,
-	Speed = NumberRange.new(10, 16),
-	SpreadAngle = Vector2.new(8, 8),
-})
-light(aura, 12)
+-- ===== Aura (v3, user request): the user's Creator Store aura "ui goku" (kept at
+-- ServerStorage.StoreSources.SaiyanAura, no scripts), recoloured gold. One Folder per R15 body part
+-- the script parents its emitters into (the source is R6: Torso -> UpperTorso, legs -> upper legs);
+-- RootAttachments = the rising foot flames + dots, as Attachments on the HumanoidRootPart. The source's
+-- "SSJ Aura" emitters (disabled, Rate 1e9) and the hair mesh are left out.
+local storeSources = ServerStorage:FindFirstChild("StoreSources")
+local auraSource = storeSources and storeSources:FindFirstChild("SaiyanAura")
+assert(auraSource, "ServerStorage.StoreSources.SaiyanAura is missing (the Creator Store aura)")
+local aura = Instance.new("Folder")
+aura.Name = "Aura"
+local R15 = { Head = "Head", Torso = "UpperTorso", ["Left Leg"] = "LeftUpperLeg", ["Right Leg"] = "RightUpperLeg" }
+for r6, r15 in R15 do
+	local bodyPart = auraSource:FindFirstChild(r6)
+	if bodyPart then
+		local slot = Instance.new("Folder")
+		slot.Name = r15
+		for _, e in bodyPart:GetChildren() do
+			if (e:IsA("ParticleEmitter") and e.Name ~= "SSJ Aura") or e:IsA("PointLight") then
+				local copy = e:Clone()
+				recolour(copy, AURA_MIN_SAT)
+				copy.Enabled = false
+				copy.Parent = slot
+			end
+		end
+		slot.Parent = aura
+	end
+end
+local rootSlot = Instance.new("Folder")
+rootSlot.Name = "HumanoidRootPart"
+local torso = auraSource:FindFirstChild("Torso") :: BasePart
+local mystical = torso and torso:FindFirstChild("mystical aura")
+local handle = mystical and mystical:FindFirstChild("Handle")
+if handle then
+	for _, a in handle:GetChildren() do
+		if a:IsA("Attachment") and a:FindFirstChildWhichIsA("ParticleEmitter") then
+			local copy = Instance.new("Attachment")
+			copy.Name = a.Name
+			copy.Position = torso.CFrame:PointToObjectSpace(a.WorldPosition) -- R6 torso centre = root
+			for _, e in a:GetChildren() do
+				if e:IsA("ParticleEmitter") then
+					local ec = e:Clone()
+					recolour(ec, AURA_MIN_SAT)
+					ec.Enabled = false
+					ec.Parent = copy
+				end
+			end
+			copy.Parent = rootSlot
+		end
+	end
+end
+rootSlot.Parent = aura
 aura.Parent = folder
 
 local ground = ringPart("Ground", 9, GOLD)
@@ -309,44 +344,64 @@ trail.Enabled = false
 trail.Parent = ribbon
 ribbon.Parent = folder
 
-local rock = Instance.new("Part")
+-- Rock: a faceted low-poly rock mesh (free Creator Store MeshPart 2557003106 "Rock" by FWS_Sinister,
+-- mesh only, kept at ServerStorage.StoreMeshes.Rock). Box parts read as cardboard.
+local rockSource = game:GetService("ServerStorage"):FindFirstChild("StoreMeshes")
+rockSource = rockSource and rockSource:FindFirstChild("Rock")
+assert(rockSource and rockSource:IsA("MeshPart"), "ServerStorage.StoreMeshes.Rock is missing (insert Creator Store 2557003106)")
+local rock = rockSource:Clone()
 rock.Name = "Rock"
-rock.Material = Enum.Material.Basalt -- light slate read as cardboard boxes
+rock.Material = Enum.Material.Basalt
 rock.Color = Color3.fromRGB(58, 54, 50)
 rock.Size = Vector3.new(0.6, 0.45, 0.55)
 fx(rock)
 rock.CastShadow = true
 rock.Parent = folder
 
--- ===== Beam =====
-local beam = part("Beam", Vector3.new(1, 1, 1))
-local function layer(name: string, tex: string, color: ColorSequence, width: number, brightness: number, speed: number, alpha: number, emission: number)
-	local b = Instance.new("Beam")
-	b.Name = name
-	b.Texture = tex
-	b.TextureMode = Enum.TextureMode.Wrap
-	b.TextureLength = 18
-	b.TextureSpeed = speed
-	b.Color = color
-	b.LightEmission = emission
-	b.LightInfluence = 0
-	b.Brightness = brightness
-	b.FaceCamera = true
-	b.Segments = 24 -- curved: the script ripples the beam with CurveSize
-	b.Width0 = width
-	b.Width1 = width
-	b.Transparency = NumberSequence.new(alpha)
-	b.Enabled = false
-	b.Parent = beam
+-- ===== Beam (v3, user request): the user's Creator Store "Ultimate Kamehameha" (kept at
+-- ServerStorage.StoreSources.KamehamehaBeam, no scripts), recoloured gold and scaled to Star Cannon's
+-- width. PrimaryPart Origin sits at the hands with its LookVector along the beam; the script stretches
+-- it to the real length every frame (parts tagged Stretch are the long tubes; attachments past the
+-- muzzle slide along). Attribute Length = its built length.
+local beamSource = storeSources and storeSources:FindFirstChild("KamehamehaBeam")
+assert(beamSource, "ServerStorage.StoreSources.KamehamehaBeam is missing (the Creator Store beam)")
+local beam = beamSource:Clone()
+beam.Name = "Beam"
+local start = beam:FindFirstChild("Start") :: BasePart
+local origin = Instance.new("Part")
+origin.Name = "Origin"
+origin.Size = Vector3.new(0.2, 0.2, 0.2)
+origin.Transparency = 1
+origin.CFrame = start.CFrame * CFrame.Angles(math.rad(-90), 0, 0) -- the source beam runs down Start's -Y
+origin.Parent = beam
+beam.PrimaryPart = origin
+local tubes = beam:FindFirstChild("Beam")
+for _, d in beam:GetDescendants() do
+	if d:IsA("LuaSourceContainer") then
+		d:Destroy()
+	elseif d:IsA("BasePart") then
+		fx(d)
+		local isTube = d:IsA("MeshPart") and tubes ~= nil and d.Parent == tubes
+		d:SetAttribute("Stretch", isTube or nil)
+		if not isTube then
+			d.Transparency = 1
+		end
+	elseif d:IsA("ParticleEmitter") then
+		d.Enabled = false
+	end
 end
--- v2: solid, detailed layers; only the core and rim lines glow fully (LightEmission 1 everywhere washed
--- to white in daylight, and v1's thin translucent layers read as see-through)
-layer("Outer", TEX.SoftBeam, ColorSequence.new(Color3.fromRGB(255, 190, 60)), 18, 1, 0.6, 0.35, 0.35)
-layer("Body", TEX.Plasma, colors({ { 0, Color3.fromRGB(235, 140, 10) }, { 0.5, Color3.fromRGB(255, 175, 30) }, { 1, Color3.fromRGB(235, 140, 10) } }), 12.5, 1.2, 3, 0, 0.3)
-layer("Veins", TEX.Veins, ColorSequence.new(Color3.fromRGB(140, 60, 0)), 11, 1, 5, 0.1, 0)
-layer("Flow", TEX.FlowBeam, ColorSequence.new(Color3.fromRGB(255, 220, 110)), 9, 1.2, 6, 0.35, 0.6)
-layer("Rim", TEX.Rim, ColorSequence.new(Color3.fromRGB(255, 240, 170)), 12.5, 2, 1.5, 0, 1)
-layer("Core", TEX.SoftBeam, ColorSequence.new(WHITE), 4.2, 2.2, 1, 0, 1)
+recolour(beam)
+beam:PivotTo(CFrame.new())
+beam:ScaleTo(beam:GetScale() * BEAM_WIDTH_SCALE) -- the source already carries its own scale factor
+local far = 0
+for _, d in beam:GetDescendants() do
+	if d:IsA("Attachment") then
+		far = math.max(far, -d.WorldPosition.Z)
+	end
+end
+beam:SetAttribute("Length", far)
+beam.Parent = folder
+
 local beamSparks = part("Sparks", Vector3.new(6, 6, 20))
 emitter(beamSparks, "Sparks", {
 	Texture = TEX.Glow,
@@ -376,38 +431,10 @@ emitter(beamSparks, "Motes", {
 	SpreadAngle = Vector2.new(180, 180),
 	RotSpeed = NumberRange.new(-120, 120),
 })
-beamSparks.Parent = beam
-beam.Parent = folder
+beamSparks.Parent = folder
 
+-- Muzzle: just the light at the hands now (the store beam brings its own muzzle burst)
 local muzzle = part("Muzzle", Vector3.new(1, 1, 1))
-emitter(muzzle, "Flare", {
-	Texture = TEX.Sparkle,
-	Color = colors({ { 0, WHITE }, { 1, PALE } }),
-	LightEmission = 1,
-	Brightness = 3,
-	LockedToPart = true,
-	Size = seq({ { 0, 5 }, { 0.5, 7 }, { 1, 5 } }), -- 9-12 hid the caster
-	Transparency = seq({ { 0, 0.15 }, { 1, 1 } }),
-	Lifetime = NumberRange.new(0.2),
-	Rate = 12,
-	Speed = NumberRange.new(0),
-	Rotation = NumberRange.new(0, 90),
-	RotSpeed = NumberRange.new(-40, 40),
-	ZOffset = 2,
-})
-emitter(muzzle, "Glow", {
-	Texture = TEX.Glow,
-	Color = colors({ { 0, Color3.fromRGB(255, 240, 200) }, { 1, Color3.fromRGB(255, 180, 30) } }),
-	LightEmission = 0.7,
-	Brightness = 2,
-	LockedToPart = true,
-	Size = seq({ { 0, 3.5 }, { 1, 4.5 } }),
-	Transparency = seq({ { 0, 0.2 }, { 1, 1 } }),
-	Lifetime = NumberRange.new(0.2),
-	Rate = 15,
-	Speed = NumberRange.new(0),
-	ZOffset = 1.5,
-})
 light(muzzle, 16)
 muzzle.Parent = folder
 
