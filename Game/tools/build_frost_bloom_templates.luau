@@ -6,7 +6,7 @@
 --   Rune     36 x 36 stud disc (the AoE: radius 18) with the rune + a soft glow on a SurfaceGui
 --   Pulse    flat ring that expands at full bloom
 --   Mist     invisible square that carries every ground emitter (mist, motes, streaks, flakes)
---   PetalOuter / PetalInner / PetalCore   faceted crystal petals (kite of 2 triangles = 4 wedges), pivot at the base,
+--   PetalOuter / PetalInner / PetalCore   textured crystal meshes (Creator Store, see CRYSTAL_SOURCE), pivot at the base,
 --            pointing up (+Y) closed; +Z is their outer (convex) side
 -- Textures: Game/assets/vfx/_src/build_frost_bloom_textures.py
 
@@ -68,31 +68,11 @@ local function image(gui: Instance, name: string, tex: string, color: Color3, tr
 	return img
 end
 
--- Two wedges that fill triangle a-b-c (thickness along the triangle's normal).
-local function triangle(parent: Instance, a: Vector3, b: Vector3, c: Vector3, thickness: number, props: (WedgePart) -> ())
-	local ab, ac, bc = b - a, c - a, c - b
-	local abd, acd, bcd = ab:Dot(ab), ac:Dot(ac), bc:Dot(bc)
-	if abd > acd and abd > bcd then
-		c, a = a, c
-	elseif acd > bcd and acd > abd then
-		a, b = b, a
-	end
-	ab, ac, bc = b - a, c - a, c - b
-	local right = ac:Cross(ab).Unit
-	local up = bc:Cross(right).Unit
-	local back = bc.Unit
-	local height = math.abs(ab:Dot(up))
-	for i, pair in { { b, 1 }, { c, -1 } } do
-		local other, sign = pair[1] :: Vector3, pair[2] :: number
-		local w = Instance.new("WedgePart")
-		w.Name = "Facet"
-		w.Size = Vector3.new(thickness, height, math.abs((other - a):Dot(back)))
-		w.CFrame = CFrame.fromMatrix((a + other) / 2, right * sign, up, back * sign)
-		props(w)
-		w.Parent = parent
-		local _ = i
-	end
-end
+-- Petal crystal: free Creator Store MeshPart 1059108490 "Crystal" by Cobleth (mesh + its own ice texture,
+-- no scripts), kept at ServerStorage.StoreMeshes.IceCrystal.
+local storeMeshes = game:GetService("ServerStorage"):FindFirstChild("StoreMeshes")
+local CRYSTAL_SOURCE = (storeMeshes and storeMeshes:FindFirstChild("IceCrystal")) :: MeshPart
+assert(CRYSTAL_SOURCE and CRYSTAL_SOURCE:IsA("MeshPart"), "ServerStorage.StoreMeshes.IceCrystal is missing (insert Creator Store 1059108490)")
 
 local function petal(name: string, length: number, width: number, widestAt: number, ridge: number): Model
 	local model = Instance.new("Model")
@@ -106,30 +86,18 @@ local function petal(name: string, length: number, width: number, widestAt: numb
 	base.Parent = model
 	model.PrimaryPart = base
 
-	local B = Vector3.new(0, 0, ridge * 0.4)
-	local T = Vector3.new(0, length, ridge * 0.5)
-	local L = Vector3.new(-width / 2, length * widestAt, 0)
-	local R = Vector3.new(width / 2, length * widestAt, 0)
-	local function look(w: WedgePart)
-		fx(w)
-		w.Material = Enum.Material.Glass
-		w.Color = PALE
-		w.Transparency = 0.35
-		w.Reflectance = 0.15
-	end
-	triangle(model, B, L, T, 0.12, look)
-	triangle(model, B, T, R, 0.12, look)
-	-- A thin bright spine down the middle (reads as the crystal's inner light).
-	local spine = Instance.new("Part")
-	spine.Name = "Spine"
-	spine.Material = Enum.Material.Neon
-	spine.Color = ICE
-	spine.Transparency = 0.25
-	fx(spine)
-	local mid = (B + T) / 2
-	spine.Size = Vector3.new(0.08, (T - B).Magnitude * 0.9, 0.08)
-	spine.CFrame = CFrame.lookAt(mid, mid + (T - B)) * CFrame.Angles(math.rad(90), 0, 0)
-	spine.Parent = model
+	-- The crystal itself: a textured crystal mesh from the Creator Store, stretched to the petal's length,
+	-- standing on the pivot and pointing up (+Y). The hand-built wedge kites read as bland and fake.
+	local crystal = CRYSTAL_SOURCE:Clone()
+	crystal.Name = "Crystal"
+	fx(crystal)
+	local depth = width * CRYSTAL_SOURCE.Size.Z / CRYSTAL_SOURCE.Size.X
+	crystal.Size = Vector3.new(width, length, depth)
+	crystal.CFrame = CFrame.new(0, length / 2, ridge * 0.3)
+	crystal.Color = WHITE
+	crystal.Transparency = 0.05
+	crystal.Parent = model
+	local _ = widestAt
 	model:SetAttribute("Length", length)
 	return model
 end
