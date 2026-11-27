@@ -231,9 +231,9 @@ emitter(mist, "Flakes", {
 mist.Parent = folder
 
 -- Petals per cast: 8 outer + 8 inner + 6 core (a closed bud in the middle)
-petal("PetalOuter", 9.5, 3.8, 0.4, 0.6).Parent = folder
-petal("PetalInner", 7, 3, 0.42, 0.5).Parent = folder
-petal("PetalCore", 3, 1.2, 0.45, 0.2).Parent = folder
+petal("PetalOuter", 15, 6, 0.4, 0.6).Parent = folder
+petal("PetalInner", 11, 4.8, 0.42, 0.5).Parent = folder
+petal("PetalCore", 5, 2, 0.45, 0.3).Parent = folder
 
 folder.Parent = vfx
 return "built " .. #folder:GetChildren() .. " templates"
