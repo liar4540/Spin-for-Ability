@@ -68,6 +68,8 @@ local EFFECTS: { [string]: Effect } = {
 	BloodMoonSlash = require(AbilityEffects:WaitForChild("BloodMoonSlashVFX")) :: any,
 	StarCannon = require(AbilityEffects:WaitForChild("StarCannonVFX")) :: any,
 	FrostBloom = require(AbilityEffects:WaitForChild("FrostBloomVFX")) :: any,
+	Sever = require(AbilityEffects:WaitForChild("SeverVFX")) :: any,
+	AltarOfRuin = require(AbilityEffects:WaitForChild("AltarOfRuinVFX")) :: any,
 }
 
 -- After using any ability, others can't start until this ends (so animations don't overlap).
@@ -432,6 +434,15 @@ function AbilityController.Start()
 		local effect = EFFECTS[abilityId]
 		if effect and effect.Beam and character then
 			effect.Beam(character, phase, origin, direction, length, serverTime)
+		end
+	end)
+
+	-- Lasting zones (everyone, the caster too): where it stands, how big, when it starts and ends.
+	Remotes.Event("AbilityZone").OnClientEvent:Connect(function(character: Model, abilityId: string, phase: string,
+		center: CFrame?, radius: number?, activeAt: number?, endsAt: number?)
+		local effect = EFFECTS[abilityId] :: any
+		if effect and effect.Zone and character then
+			effect.Zone(character, phase, center, radius, activeAt, endsAt)
 		end
 	end)
 

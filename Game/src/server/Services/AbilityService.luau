@@ -34,7 +34,7 @@ type AbilityDef = Types.AbilityDef
 
 -- Studio only: every player starts with these in storage, so abilities can be tested
 -- without spinning for them. Never runs in the live game.
-local STUDIO_STARTER_ABILITIES = { "EmberFist", "PebbleToss", "GaleStep", "FrostJab", "ThunderLance", "FrostBloom", "ShadowSwap", "BloodMoonSlash", "StarCannon" }
+local STUDIO_STARTER_ABILITIES = { "EmberFist", "PebbleToss", "GaleStep", "FrostJab", "ThunderLance", "FrostBloom", "ShadowSwap", "BloodMoonSlash", "StarCannon", "Sever", "AltarOfRuin" }
 
 -- Small allowance so a press sent the moment the cooldown ends isn't rejected because of ping.
 local LATENCY_ALLOWANCE = 0.2
@@ -74,6 +74,7 @@ local abilityLaunch: RemoteEvent
 local abilityStrike: RemoteEvent
 local abilityTeleport: RemoteEvent
 local abilityBeam: RemoteEvent
+local abilityZone: RemoteEvent
 
 local function storageCount(data: DataService.PlayerData): number
 	local count = 0
@@ -421,13 +422,28 @@ end
 -- draws the crescent from AbilityUsed on its own clock and the bleed from AbilityImpact.
 local CRESCENT_GROUND = 3 -- studs from the HumanoidRootPart down to the feet
 local function useCrescent(player: Player, character: Model, root: BasePart, def: AbilityDef, aim: Vector3, castId: number, fromHook: boolean?)
+	if def.RootDuringWindup then
+		-- Sever: no walking through the hand signs and the follow-through (the client still turns the body)
+		StateService.SetRooted(character, workspace:GetServerTimeNow() + (def.WindupSeconds or 0) + (def.RecoverySeconds or 0))
+	end
 	task.wait(def.WindupSeconds or 0)
 	if (not fromHook and not CombatService.IsCastCurrent(player, castId)) or not root.Parent then
+		if def.RootDuringWindup then
+			StateService.SetRooted(character, 0)
+		end
 		return
 	end
 	local forward = Vector3.new(aim.X, 0, aim.Z)
+	if def.AimAtRelease then
+		-- the caster's client kept them facing the camera until the aim locked: that facing is the aim
+		forward = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
+	end
 	forward = if forward.Magnitude > 0.01 then forward.Unit else Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z).Unit
 	local origin = root.Position
+	if def.AimAtRelease then
+		-- every client (the caster too) draws the release from here: the direction is only known now
+		abilityLaunch:FireAllClients(character, def.Id, origin, forward, workspace:GetServerTimeNow(), 0)
+	end
 	local width = def.CrescentWidth or 30
 	local height = def.CrescentHeight or 10
 	local speed = def.ProjectileSpeed or 90
@@ -466,6 +482,76 @@ local function useCrescent(player: Player, character: Model, root: BasePart, def
 		end
 		RunService.Heartbeat:Wait()
 	end
+end
+
+-- Domain (Altar of Ruin). The cast (WindupSeconds) locks the caster; a stun / ragdoll in that time
+-- cancels it. Then an altar rises DomainBehindStuds behind them (on the ground) over DomainRiseSeconds,
+-- and for DomainSeconds every DomainTickSeconds everyone within Range (flat radius, DomainHeightLimit up
+-- and down) of the altar takes a tick (CombatService.DomainTick: less while blocking, guard drains) and is
+-- slowed. The zone stays where the altar is; the caster is free after the cast and is never hit. It ends
+-- early if the caster dies or leaves. Every client draws it from AbilityZone ("Start" / "End").
+local DOMAIN_GROUND_DROP = 40
+local activeDomains: { [Player]: number } = {} -- [caster] = cast id of their running domain
+local function useDomain(player: Player, character: Model, root: BasePart, def: AbilityDef, castId: number)
+	task.wait(def.WindupSeconds or 0)
+	if not CombatService.IsCastCurrent(player, castId) or not root.Parent then
+		return
+	end
+	local back = -Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
+	back = if back.Magnitude > 0.01 then back.Unit else Vector3.new(0, 0, 1)
+	local behind = root.Position + back * (def.DomainBehindStuds or 12)
+	local ground = workspace:Raycast(behind + Vector3.new(0, 10, 0), Vector3.new(0, -DOMAIN_GROUND_DROP, 0), Projectile.Filters(character).World)
+	local center = if ground then ground.Position else behind - Vector3.new(0, 3, 0)
+	local radius = def.Range
+	local rise = def.DomainRiseSeconds or 2
+	local seconds = def.DomainSeconds or 15
+	local interval = def.DomainTickSeconds or 0.1
+	local t0 = workspace:GetServerTimeNow()
+	local activeAt = t0 + rise
+	local endsAt = activeAt + seconds
+	activeDomains[player] = castId
+	-- facing: the altar looks the same way as the caster
+	abilityZone:FireAllClients(character, def.Id, "Start", CFrame.lookAt(center, center - back), radius, activeAt, endsAt)
+
+	local amount = def.Damage * Rarities.Defs[def.Rarity].Power
+	local blockedAmount = def.DomainBlockedTickDamage or amount
+	local drain = (def.DomainGuardDrainPerSecond or 1) * interval
+	local height = def.DomainHeightLimit or 30
+	local function casterGone(): boolean
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		return player.Parent == nil or player.Character ~= character or not humanoid or humanoid.Health <= 0
+	end
+
+	while workspace:GetServerTimeNow() < activeAt do
+		if casterGone() then
+			break
+		end
+		RunService.Heartbeat:Wait()
+	end
+	local nextTick = activeAt
+	while not casterGone() and workspace:GetServerTimeNow() < endsAt do
+		local t = workspace:GetServerTimeNow()
+		if t >= nextTick then
+			nextTick += interval
+			for _, humanoid in HitboxService.InCircle(character, center, radius, 64, height, height) do
+				local model = humanoid.Parent
+				local targetRoot = model and model:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if model and model:IsA("Model") and targetRoot and math.abs(targetRoot.Position.Y - center.Y) <= height then
+					local result = CombatService.DomainTick(player, model, amount, blockedAmount, drain, def.Id)
+					if result == "Hit" or result == "Blocked" then
+						if def.SlowMultiplier and def.SlowSeconds then
+							StateService.ApplySlow(model, def.SlowMultiplier, def.SlowSeconds, def.SlowJumpMultiplier, def.SlowKind)
+						end
+					end
+				end
+			end
+		end
+		RunService.Heartbeat:Wait()
+	end
+	if activeDomains[player] == castId then
+		activeDomains[player] = nil
+	end
+	abilityZone:FireAllClients(character, def.Id, "End")
 end
 
 -- Channelled beam (Star Cannon). The caster is rooted from the key press (can't walk, jump or turn;
@@ -689,6 +775,8 @@ local function onUseAbility(player: Player, slot: number, aim: Vector3, pick: Mo
 
 	if def.Crescent then
 		useCrescent(player, character, root, def, aim, castId)
+	elseif def.Domain then
+		useDomain(player, character, root, def, castId)
 	elseif def.Beam then
 		useBeam(player, character, root, def, aim, castId)
 	elseif def.Type == "Melee" then
@@ -750,6 +838,7 @@ function AbilityService.Init()
 	abilityStrike = Remotes.Event("AbilityStrike")
 	abilityTeleport = Remotes.Event("AbilityTeleport")
 	abilityBeam = Remotes.Event("AbilityBeam")
+	abilityZone = Remotes.Event("AbilityZone")
 end
 
 function AbilityService.Start()

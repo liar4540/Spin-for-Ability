@@ -213,6 +213,65 @@ local Abilities: { AbilityDef } = {
 		Description = "Charge a star in your hands and unleash a massive beam of stellar energy.",
 	},
 	{
+		-- From the friend's combat repo ("World Cutting Slash"), renamed and rebalanced with the user
+		-- (2026-11-28): 25 damage, goes through block, 120 studs, 40 x 30 grid, 25 s cooldown. Hand signs
+		-- for 1.1 s while the caster turns with the camera, the aim locks for 0.25 s, then the # grid of
+		-- blades flies out from the direction faced at the release. client/Abilities/SeverVFX reads it.
+		Id = "Sever",
+		Name = "Sever",
+		Rarity = "Ascended",
+		Type = "Melee",
+		Damage = 25 / 1.35 ^ 5, -- each enemy takes exactly 25 after Ascended's Power (x1.35 per tier above Common)
+		Cooldown = 25,
+		Range = 120, -- studs the grid travels (less if a wall is in the way: it stops there)
+		Crescent = true, -- swept forward like Blood Moon Slash's crescent, hitting each enemy once
+		CrescentWidth = 40,
+		CrescentHeight = 30,
+		ProjectileSpeed = 300, -- crosses 120 studs in 0.4 s
+		WindupSeconds = 1.35, -- 1.1 s of hand signs (turning with the camera) + 0.25 s locked aim
+		RecoverySeconds = 0.6,
+		AimTrackSeconds = 1.1, -- the client turns the caster with the camera this long; then the aim is locked
+		AimAtRelease = true, -- the grid flies where the caster faces at the release, not at the key press
+		RootDuringWindup = true, -- can't walk during the hand signs (turning is allowed)
+		GuardBreak = true, -- goes through block
+		OnHit = "Stun",
+		Stun = 1.0,
+		Knockback = 50,
+		MinRequestSeconds = 0.25,
+		AirUsable = false,
+		Description = "Weave hand signs, then tear a giant grid of blades across the battlefield. Cuts through any block.",
+	},
+	{
+		-- From the friend's combat repo ("Malevolent Shrine"), renamed and rebalanced with the user
+		-- (2026-11-28): an altar rises behind the caster and a storm of slashes fills a 120-stud radius for
+		-- 15 s: 0.3 damage every 0.1 s (45 total); someone blocking takes 0.2 and loses guard instead;
+		-- everyone inside walks 25% slower. 60 s cooldown. client/Abilities/AltarOfRuinVFX reads it.
+		-- Timeline: cast 0-1.5 s (caster locked), altar rises 1.5-3.5 s, slashes + damage 3.5-18.5 s.
+		Id = "AltarOfRuin",
+		Name = "Altar of Ruin",
+		Rarity = "Secret",
+		Type = "AoE",
+		Damage = 0.3 / 1.35 ^ 8, -- each tick deals exactly 0.3 after Secret's Power (x1.35 per tier above Common)
+		Cooldown = 60,
+		Range = 120, -- radius of the zone, measured from the altar
+		Domain = true,
+		WindupSeconds = 1.5, -- the cast: caster locked; a stun / ragdoll in this time cancels it
+		RecoverySeconds = 0.25,
+		DomainBehindStuds = 12, -- the altar stands this far behind the caster
+		DomainRiseSeconds = 2.0, -- it rises out of the ground after the cast; the slashes start when it's up
+		DomainSeconds = 15,
+		DomainTickSeconds = 0.1,
+		DomainBlockedTickDamage = 0.2, -- per tick while holding block (final damage)...
+		DomainGuardDrainPerSecond = 1, -- ...and guard drains this fast (guard 6: a held block breaks after ~6 s)
+		DomainHeightLimit = 30, -- studs above / below the altar that still count
+		SlowMultiplier = 0.75, -- walk -25% while inside...
+		SlowSeconds = 0.3, -- ...refreshed every tick, so it ends 0.3 s after leaving the zone
+		SlowKind = "Domain",
+		MinRequestSeconds = 0.25,
+		AirUsable = false,
+		Description = "Raise an altar of ruin. A storm of slashes tears through everything around it for 15 seconds.",
+	},
+	{
 		Id = "VoidEclipse",
 		Name = "Void Eclipse",
 		Rarity = "Mythic",

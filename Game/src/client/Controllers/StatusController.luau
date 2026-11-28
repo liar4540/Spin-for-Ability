@@ -22,6 +22,8 @@ local STATUSES = {
 local SLOW_KINDS: { [string]: { Icon: string, Bar: Color3 } } = {
 	Freeze = { Icon = "rbxassetid://81174984287526", Bar = Color3.fromRGB(150, 215, 255) },
 	Heavy = { Icon = "rbxassetid://76281338593248", Bar = Color3.fromRGB(255, 205, 60) },
+	-- Altar of Ruin's zone slow (temporary icon: Heavy's, until a domain icon is made)
+	Domain = { Icon = "rbxassetid://76281338593248", Bar = Color3.fromRGB(220, 30, 50) },
 }
 local ICON_PX = 34
 local FLASH = Color3.fromRGB(200, 0, 20)
