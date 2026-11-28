@@ -424,6 +424,49 @@ function CombatService.TickHit(attacker: Player, target: Model, amount: number, 
 	return "Hit"
 end
 
+-- ===== Domain ticks (Altar of Ruin) =====
+-- One tick of a lasting zone. The slashes come from every side, so a held block (any direction) only
+-- softens it: blockedAmount damage and guardDrain guard lost instead of amount; when the guard runs out it
+-- breaks (staggered, can't block for a while). No combo scaling, hit reaction or knockback; safe zones,
+-- spawn shields and i-frames still stop it, and the caster gets the KO credit.
+function CombatService.DomainTick(attacker: Player?, target: Model, amount: number, blockedAmount: number, guardDrain: number, abilityId: string): HitResult
+	local humanoid = target:FindFirstChildOfClass("Humanoid")
+	local root = rootOf(target)
+	if not humanoid or not root or humanoid.Health <= 0 or not StateService.Get(target) then
+		return "Invalid"
+	end
+	local attackerCharacter = if attacker then attacker.Character else nil
+	if attackerCharacter == target then
+		return "Invalid"
+	end
+	if not isDummy(target) and inSafeZone(root.Position) then
+		return "SafeZone"
+	end
+	if StateService.HasIFrames(target) then
+		return "Immune"
+	end
+	local f = StateService.Get(target)
+	local cfg = Combat.Block
+	if f and f.state == "Blocking" and f.blockStartedAt > 0 and now() - f.blockStartedAt >= cfg.Startup then
+		f.lastBlockedAt = now()
+		StateService.SetGuard(target, f.guard - guardDrain)
+		humanoid:TakeDamage(blockedAmount)
+		noteDamage(target, attacker)
+		if f.guard <= 0 then
+			StateService.Set(target, "GuardBroken", cfg.GuardBreakStunSeconds)
+			f.blockDisabledUntil = now() + cfg.BlockDisabledAfterBreak
+			StateService.SetGuard(target, cfg.GuardPoints)
+			setReaction(target, "Stun")
+			hitEffect:FireAllClients(target, abilityId, root.Position, "GuardBreak", attackerCharacter)
+			return "GuardBreak"
+		end
+		return "Blocked"
+	end
+	humanoid:TakeDamage(amount)
+	noteDamage(target, attacker)
+	return "Hit"
+end
+
 -- ===== Status damage (bleed) =====
 -- Damage from a status over time: no block, combo scaling, hit reaction or knockback, but spawn
 -- shields / i-frames still stop it and the attacker still gets the KO credit.

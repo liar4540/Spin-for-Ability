@@ -63,6 +63,20 @@ export type AbilityDef = {
 	CrescentHeight: number?, -- studs, from the ground up
 	BleedPerTick: number?, -- a clean hit bleeds this much every second... (CombatService.ApplyBleed)
 	BleedSeconds: number?, -- ...for this long; a new hit refreshes it, never stacks
+	AimTrackSeconds: number?, -- the caster's client turns them with the camera this long during the wind-up (Sever)
+	AimAtRelease: boolean?, -- the direction is where the caster faces at the release, not at the key press
+	RootDuringWindup: boolean?, -- no walking or jumping through the wind-up and recovery (turning allowed)
+	-- Domain (Altar of Ruin): after the cast an altar rises DomainBehindStuds behind the caster; when it's up,
+	-- every DomainTickSeconds for DomainSeconds everyone within Range (radius) of it takes Damage x Power,
+	-- or DomainBlockedTickDamage while blocking (plus guard drain), and is slowed (SlowMultiplier...).
+	Domain: boolean?,
+	DomainBehindStuds: number?,
+	DomainRiseSeconds: number?,
+	DomainSeconds: number?,
+	DomainTickSeconds: number?,
+	DomainBlockedTickDamage: number?,
+	DomainGuardDrainPerSecond: number?,
+	DomainHeightLimit: number?,
 	-- Lock-on teleport (Shadow Swap): Range = lock-on radius. WindupSeconds = when the caster vanishes.
 	Teleport: boolean?, -- teleports behind the nearest enemy in Range (shared/Teleport); no enemy = refused, no cooldown
 	BehindStuds: number?, -- how far behind the target it lands
